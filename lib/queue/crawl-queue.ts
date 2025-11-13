@@ -13,6 +13,8 @@ import { updateSiteStatus } from '@/lib/db/sites';
 import { getPlanLimits } from '@/lib/plans';
 import { getUnixTimestamp } from '@/db/client';
 import { runSiteAudit } from '@/lib/seo/audit';
+import { sendFirstAuditCompleteEmail } from '@/lib/email/notifications';
+import { getCrawlJobsBySiteId } from '@/lib/db/crawl-jobs';
 
 export interface CrawlQueueMessage {
   siteId: string;
@@ -43,7 +45,8 @@ export async function enqueueCrawlJob(
  */
 export async function processCrawlJob(
   db: D1Database,
-  message: CrawlQueueMessage
+  message: CrawlQueueMessage,
+  env?: any
 ): Promise<void> {
   const { siteId, crawlJobId, url, userPlan } = message;
 
@@ -92,6 +95,20 @@ export async function processCrawlJob(
     // 크롤 작업 완료
     await updateCrawlJobStatus(db, crawlJobId, 'completed');
     await updateSiteStatus(db, siteId, 'ready', getUnixTimestamp());
+
+    // 첫 감사 완료 이메일 발송 (이전 크롤 작업이 없는 경우)
+    try {
+      const previousJobs = await getCrawlJobsBySiteId(db, siteId, 2);
+      // 현재 작업을 제외하고 완료된 작업이 없으면 첫 감사로 간주
+      const isFirstAudit = previousJobs.filter((j) => j.status === 'completed').length === 1;
+      if (isFirstAudit) {
+        console.log(`Sending first audit complete email for site ${siteId}...`);
+        await sendFirstAuditCompleteEmail(db, siteId, env);
+      }
+    } catch (emailError) {
+      // 이메일 발송 실패는 크롤 작업 실패로 간주하지 않음
+      console.error('Failed to send first audit complete email:', emailError);
+    }
   } catch (error) {
     console.error('Crawl job failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

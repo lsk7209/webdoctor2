@@ -33,7 +33,7 @@ export default {
   async queue(batch: MessageBatch<CrawlQueueMessage>, env: Env): Promise<void> {
     for (const message of batch.messages) {
       try {
-        await processCrawlJob(env.DB, message.body);
+        await processCrawlJob(env.DB, message.body, env);
         message.ack();
       } catch (error) {
         console.error('Failed to process crawl job:', error);
