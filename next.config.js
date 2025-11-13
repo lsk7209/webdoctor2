@@ -138,6 +138,21 @@ const nextConfig = {
           },
         };
       }
+      
+      // 정적 생성 관련 모듈 제외
+      config.module = config.module || {};
+      if (config.module.rules) {
+        config.module.rules = config.module.rules.map((rule) => {
+          if (rule && typeof rule === 'object' && rule.test) {
+            // 정적 생성 관련 로더 제외
+            if (rule.test.toString().includes('static') || 
+                rule.test.toString().includes('prerender')) {
+              return { ...rule, exclude: /.*/ };
+            }
+          }
+          return rule;
+        });
+      }
     }
     
     return config;
