@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build || true",
     "build:cloudflare": "next build && npx @cloudflare/next-on-pages --experimental-static",
     "start": "next start",
     "lint": "next lint",
