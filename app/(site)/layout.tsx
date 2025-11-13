@@ -1,6 +1,6 @@
-import dynamic from 'next/dynamic';
+import dynamicImport from 'next/dynamic';
 
-const Navigation = dynamic(() => import('@/components/navigation'), {
+const Navigation = dynamicImport(() => import('@/components/navigation'), {
   ssr: false,
 });
 
