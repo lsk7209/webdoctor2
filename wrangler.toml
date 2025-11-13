@@ -1,0 +1,21 @@
+name = "koreseo"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# D1 데이터베이스 설정
+[[d1_databases]]
+binding = "DB"
+database_name = "koreseo-db"
+database_id = "" # Cloudflare 대시보드에서 생성 후 ID 입력
+
+# Queue 설정 (크롤 작업)
+[[queues]]
+binding = "QUEUE"
+queue = "crawl-queue"
+
+# 환경 변수 (로컬 개발용)
+[vars]
+NODE_ENV = "development"
+JWT_SECRET = "your-secret-key-change-in-production" # 프로덕션에서는 대시보드에서 설정
+
+# 프로덕션 환경 변수는 Cloudflare 대시보드에서 설정

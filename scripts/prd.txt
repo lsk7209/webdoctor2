@@ -1,0 +1,456 @@
+# [PRD] 한국형 SEO SaaS — KoreSEO (가칭)
+
+## 1. 이 서비스는 무엇이고 누구를 위한 것인가?
+
+**직답:** SEO 비전문가(국내 마케터·중소사업자·에이전시)가 **URL만 넣으면** 한국 환경(구글+네이버)에 맞는 SEO 감사·리포트를 자동으로 받는 SaaS.
+
+### 1.1 제품 목적
+
+* 국내 사이트를 대상으로
+  * 기술 SEO
+  * 콘텐츠 품질
+  * 검색 성과(CTR·클릭·노출)
+  를 자동 진단하고,
+* "해야 할 일(To-Do)" 리스트와 리포트로 **검색→방문→읽기→전환**까지의 개선을 돕는 도구.
+
+### 1.2 타깃 사용자
+
+| 타입           | 설명                                |
+| ------------ | --------------------------------- |
+| 1인 쇼핑몰/소상공인  | 개발자 없이도 사이트 SEO 상태를 알고 싶은 사용자     |
+| 인하우스 마케터     | 업무 중 하나로 SEO를 관리해야 하는 실무자         |
+| 마케팅·SEO 에이전시 | 여러 고객 사이트를 관리하고 리포트를 정기 제공해야 하는 팀 |
+
+### 1.3 문제 정의
+
+* 국내 사용자는
+  * SEO 개념을 잘 모르고
+  * 구글·네이버 환경이 섞여 있어 무엇부터 해야 할지 모름.
+* 기존 대형 SEO툴은
+  * 영어 UI, 과도한 기능, 높은 가격으로 진입장벽이 큼.
+
+본 서비스는 **간단한 UI**와 **행동지향 To-Do**를 통해
+"어디가 문제인지 → 무엇을 고쳐야 하는지 → 고치면 어떤 변화가 있었는지"를 보여주는 것이 핵심.
+
+### 1.4 스코프(Phase 1 MVP)
+
+포함:
+* 계정/로그인, 워크스페이스, 사이트 등록
+* 자체 크롤러 기반 SEO 감사(기술+콘텐츠)
+* To-Do 이슈 리스트
+* GSC·GA4 연동, 기본 인사이트/CTR 리포트
+* 네이버 Search Advisor 최소 연동(링크 등록/색인 상태 조회) 또는 크롤링 기반 상태 추정
+* AI 기반 메타태그·타이틀 추천(한국어)
+* 리포트(웹·메일), PDF/CSV 익스포트(간단 버전)
+* 기본 Admin: 품질 게이트·잡 모니터·간단 지표 대시보드
+
+Out of scope (향후 버전):
+* 본격 백링크 분석(서드파티 API 연동)
+* 고급 SERP 경쟁자 분석·키워드 리서치
+* 완전 자동 결제(Stripe/Toss 등 PG 연동) – MVP에서는 내부 플래그
+
+## 2. IA와 라우팅은 어떻게 구성되는가?
+
+**직답:** Next.js App Router 기준으로 `(site)/(plain)/(admin)` 세 레이아웃으로 분리, 권한·크롬을 분명히 나눈다.
+
+### 2.1 앱 레이아웃 구조
+
+```
+/app
+  /(site)
+    /        # 마케팅 홈 + 로그인 상태일 때 대시보드로 리다이렉트
+    /login
+    /signup
+    /dashboard           # 기본 SEO 대시보드 (로그인 필요)
+    /sites               # 사이트 목록
+    /sites/[siteId]      # 사이트별 상세 대시보드
+    /reports/[siteId]    # 리포트 리스트/상세
+    /settings/profile
+    /pricing
+    /help
+  /(plain)
+    /landing/[campaign]  # 크롬 없는 랜딩
+    /terms
+    /privacy
+  /(admin)
+    /login               # 별도 관리자 로그인(또는 SSO)
+    /dashboard           # 전체 서비스 상태 요약
+    /content             # 콘텐츠/게이트 상태
+    /quality             # 품질 규칙/게이트 설정
+    /search              # GSC/네이버 연동·색인 상태
+    /jobs                # 크론/잡 모니터링
+    /monetization        # 수익·플랜 현황(기본 통계)
+    /settings            # RBAC, API 키, 감사 로그
+```
+
+### 2.2 도메인 모델(워크스페이스·사이트)
+
+* User
+  * id, email, password_hash, name
+  * plan (trial_basic | basic | pro | enterprise)
+  * trial_expires_at
+
+* Workspace (MVP: User 1명당 1개, 테이블로 분리해 확장성 확보)
+  * id, owner_user_id
+  * name
+
+* Site
+  * id, workspace_id
+  * url, display_name
+  * status (pending | crawling | ready | failed)
+  * last_crawled_at
+  * page_limit (플랜별)
+  * gsc_connected (bool), ga_connected (bool)
+  * naver_connected (bool 또는 naver_site_id)
+
+* CrawlJob
+  * id, site_id, status, started_at, finished_at, error_message
+
+* PageSnapshot
+  * id, site_id, url, last_crawled_at, http_status
+  * title, meta_description, h1, headings_json, links_in/out, canonical, noindex, structured_data_json
+  * lighthouse_score_json (performance/seo 등)
+
+* Issue (To-Do)
+  * id, site_id, page_url, issue_type, severity, status (open|in_progress|resolved|ignored)
+  * summary, description, fix_hint
+
+* Integration
+  * id, site_id, type (gsc|ga4|naver), external_id, status, last_synced_at
+
+* MetricDaily (간단 집계)
+  * id, site_id, date, clicks, impressions, ctr, avg_position, sessions, bounce_rate 등
+
+DB는 D1 기준 정규화, 상세 ERD는 구현 단계에서 Cursor에 위 모델을 기준으로 확장.
+
+## 3. 온보딩과 계정 플로우는 어떻게 동작해야 하는가?
+
+**직답:** "가입 → 첫 사이트 등록 → 첫 감사 자동 실행 → 결과 요약 메일"까지 한 번에 이어지는 흐름이 MVP 필수.
+
+### 3.1 인증·계정
+
+* 이메일·비밀번호 기반 인증 (JWT 세션)
+* 나중에 Google OAuth 추가 가능하나, MVP에서는 선택
+* 비밀번호 찾기: 메일로 리셋 링크 발송
+
+### 3.2 워크스페이스·사이트 제한 (MVP)
+
+* Free Trial: 기본 워크스페이스 1개 자동 생성
+* 각 플랜별:
+  * trial_basic: 사이트 1개, 페이지 500
+  * basic: 사이트 5개, 사이트당 페이지 2,000
+  * pro: 사이트 15개, 사이트당 페이지 5,000
+  * enterprise: 협의(기본 50개, 10,000+ 페이지)
+
+### 3.3 온보딩 플로우
+
+1. `/signup`에서 이메일·비밀번호 등록
+2. 가입 성공 시 워크스페이스 생성, 플랜=trial_basic(14일) 설정
+3. 바로 "사이트 추가" 모달 표시
+   * 입력: 사이트 URL, 별칭(optional)
+4. "분석 시작" 클릭 시
+   * `CrawlJob` 생성, 상태=crawling
+   * 대기 화면:
+     * "초기 분석은 약 몇 분 소요될 수 있습니다."
+     * "분석 완료 시 메일로 알려드립니다."
+5. 크롤 완료 후
+   * Site.status=ready
+   * Dashboard 첫 화면에 Site Health·이슈 Top3 표시
+   * "첫 감사 완료" 이메일 발송
+
+### 3.4 플랜 만료·업그레이드 동작 (MVP)
+
+* trial_basic 만료 후:
+  * 로그인은 가능
+  * 기존 리포트 조회 가능
+  * 새 사이트 추가·새 크롤 실행 버튼 비활성화
+  * "플랜 업그레이드 문의" 모달(메일링크) 노출
+
+* 실제 결제·플랜 업그레이드는 운영자가 Admin에서 수동 변경 (PG 연동은 차기 버전)
+
+## 4. SEO 감사(Audit)와 To-Do는 무엇을 어떻게 검사하는가?
+
+**직답:** 자체 크롤러로 메타·헤딩·링크·속도·색인 신호를 수집하고, 룰 기반으로 이슈를 생성해 To-Do 리스트로 보여준다.
+
+### 4.1 크롤러 동작
+
+* 입력: site.url, page_limit, crawl_depth_limit (기본 50)
+* robots.txt 체크, User-Agent "KoreSEO Crawler" 사용
+* 우선순위:
+  * sitemap.xml 있으면 먼저 크롤
+  * 없으면 홈에서 BFS
+* 수집 항목:
+  * URL, HTTP status, canonical, meta robots, meta title/description
+  * H1~H3, a href 내부/외부 링크, img alt 여부
+  * structured data(JSON-LD) 유무 및 type
+* Lighthouse/Pagespeed:
+  * 주요 페이지(예: 상위 100페이지)만 API 호출 (요금 절약)
+  * performance/seo 점수 및 Core Web Vitals 요약 수집
+
+### 4.2 감사 룰(기본 세트)
+
+예: (issue_type → 생성 조건)
+
+* `missing_title`
+  * title 미존재 또는 공백
+* `duplicate_title`
+  * 동일 title을 가진 URL 개수 > N
+* `short_or_long_description`
+  * description 길이 < 50 또는 > 160
+* `no_h1`
+  * H1 없음
+* `multiple_h1`
+  * H1 개수 > 1
+* `broken_internal_link`
+  * 내부 링크 대상 URL의 HTTP status 4xx/5xx
+* `no_canonical_on_parameterized`
+  * `?` 포함 URL인데 canonical 없음
+* `slow_page`
+  * Lighthouse performance score < 50 (모바일 기준)
+* `no_structured_data`
+  * 블로그/가이드 타입 콘텐츠인데 BlogPosting 스키마 없음 (나중에 확장)
+
+각 이슈는 `severity`(high|medium|low)를 갖고, high만 기본 대시보드 상단에 노출.
+
+### 4.3 To-Do 리스트 UI 요구사항
+
+* `/sites/[siteId]` 상단:
+  * Site Health(0–100), high/medium/low 이슈 개수
+* 아래 리스트:
+  * 필터: issue_type, severity, status(open/resolved)
+  * 각 Row:
+    * issue_type 라벨, 요약 텍스트
+    * affected_pages_count
+    * severity 표시 색상
+  * 클릭 시 오른쪽 패널 또는 상세 페이지:
+    * 상세 설명(왜 문제인지)
+    * 해결 가이드 텍스트
+    * 영향을 받는 페이지 테이블(URL, title, 최근 상태)
+
+## 5. GSC·GA·CTR 인사이트는 어떻게 보여주는가?
+
+**직답:** GSC에서 검색어·클릭·노출·CTR을, GA4에서 세션·이탈률을 받아와 페이지·키워드 단위로 합쳐서 보여준다.
+
+### 5.1 GSC 통합
+
+* 사용자 별 OAuth 연동, 사이트 별 property 연결
+* 정기 동기화(일 1회 + 인사이트 탭 진입 시 lazy refresh)
+* 저장 데이터(KeywordDaily):
+  * site_id, date, query, page_url, clicks, impressions, ctr, avg_position
+
+### 5.2 GA4 통합
+
+* GA4 property 및 data stream 선택
+* 저장 데이터(PageMetricDaily):
+  * site_id, date, page_url, sessions, users, bounce_rate(or engagement_rate), avg_session_duration
+
+### 5.3 인사이트 대시보드 (/sites/[siteId]/insights)
+
+* 상단 카드:
+  * 지난 7일 vs 이전 7일 클릭/노출/CTR/평균순위
+  * 지난 7일 세션/사용자/이탈률
+* 탭 구조:
+  * Keywords:
+    * 테이블: query, clicks, impressions, ctr, avg_position, 트렌드(아이콘)
+    * 필터: 기간, 최소 impressions
+  * Pages:
+    * 테이블: page_url, clicks, impressions, ctr, avg_position, sessions
+  * CTR Issues:
+    * "순위 대비 CTR 낮은 페이지" 리스트
+    * 기본 기준: impressions > 100, avg_position < 10, CTR < (포지션별 기대 CTR의 60%)
+    * 각 Row 클릭 시 해당 페이지의 메타태그 개선 화면으로 이동
+
+## 6. 네이버 및 색인 상태는 최소 어떻게 다뤄야 하는가?
+
+**직답:** MVP에서는 네이버 Search Advisor/Owndata 정보가 없더라도, 최소한 "네이버 검색 결과 존재 여부 + 등록 페이지 수" 정도는 크롤링 기반으로 추정·표시한다.
+
+(네이버 공식 API가 불안정/미제공일 가능성 고려해 **크롤링+수동 연동** 혼합.)
+
+### 6.1 네이버 연동 전략 (MVP 현실 버전)
+
+* 옵션 A: 네이버 Search Advisor 계정 연동
+  * 사용자가 site verification 후, 제공되는 사이트맵·색인 통계 페이지를 우리 쪽이 크롤링해서 요약
+* 옵션 B: 직접 검색 크롤링 (간단)
+  * "site:도메인" 검색 결과 첫 페이지의 결과 수/대표 URL 정도만 수집
+* MVP 기준:
+  * A가 어려우면 B로 시작하여:
+    * "네이버 검색에서 이 도메인이 노출되는지 여부"
+    * 상위 몇 개 URL 리스트 정도만 표시
+
+### 6.2 색인 상태 UI
+
+* `/sites/[siteId]/search` 탭:
+  * 구글:
+    * GSC 색인된 페이지 수, 오류 페이지 수
+  * 네이버:
+    * "노출 여부: 예/아니오"
+    * 대표 검색 결과 몇 개 URL
+  * 신규 콘텐츠 발행 시:
+    * IndexNow 호출 (bing/네이버 지원)
+    * GSC URL Inspection API는 다음 버전에서 고려
+
+## 7. 콘텐츠 진단과 AI 추천은 어떻게 동작하는가?
+
+**직답:** 페이지 HTML에서 구조·텍스트를 분석해 가독성·링크·헤딩·키워드 사용을 점수화하고, 생성형 AI로 메타태그/alt/FAQ 초안을 만들어 준다.
+
+### 7.1 콘텐츠 진단 룰
+
+* H 구조:
+  * H1 1개 필수, H2/H3는 계층 구조 유지
+* 내부 링크:
+  * 본문 최초 300자 내 내부 링크 최소 1개
+  * H2 섹션별 내부 링크 최소 1개 권장
+* 외부 링크:
+  * 신뢰할 수 있는 외부 도메인 링크 존재 여부(옵션)
+* 가독성:
+  * 문장 길이, 문단 길이, 불필요한 반복 정도 등으로 점수화
+* 이미지:
+  * img alt 미입력 비율
+
+### 7.2 AI 추천 기능
+
+* 입력: 페이지 URL 또는 HTML, 주요 타깃 키워드(선택)
+* 출력:
+  * 후보 메타 타이틀 3개
+  * 후보 메타 설명 3개 (각 80~140자)
+  * 추천 키워드/태그 리스트
+  * 이미지 alt 텍스트 제안 (필요 시)
+* 모델: OpenAI GPT 계열(한국어 응답), 프롬프트:
+  * "한국어 웹페이지 SEO에 최적화된 자연스러운 제목/설명을 생성"이 핵심
+
+UI:
+* Page 상세 화면에서 "AI로 메타 태그 제안" 버튼
+* 제안된 결과는 그대로 저장하지 않고, 사용자가 선택 후 "저장"하는 구조
+
+## 8. 리포트와 알림은 어떻게 제공되는가?
+
+**직답:** 웹 대시보드 + 기본 PDF/CSV 익스포트 + 핵심 메일 알림(첫 감사 완료, 주간 요약, 치명적 이슈)만으로 MVP 운영 가능하게 한다.
+
+### 8.1 리포트 익스포트
+
+* PDF:
+  * 사이트 요약(Health, 이슈 Top5, 클릭·노출 추이)
+  * 페이지/키워드 상세 테이블은 상위 N개만
+* CSV:
+  * Issues export (필터·검색 조건 반영)
+  * Keyword/Pages export (인사이트 화면에서)
+
+### 8.2 이메일 알림 시나리오
+
+* 첫 감사 완료:
+  * 제목: "[서비스명] 첫 SEO 진단이 완료되었습니다."
+  * 내용:
+    * Site Health 점수
+    * High severity 이슈 Top3
+    * 대시보드 링크
+* 주간 리포트 (매주 월 09:00 KST):
+  * 지난 7일 vs 이전 7일:
+    * 클릭·노출·CTR·평균순위
+    * 새 이슈 수 / 해결된 이슈 수
+* 치명적 이슈 알림:
+  * 조건 예:
+    * 404 이슈 수가 전주 대비 50% 이상 증가
+    * GSC 에러 페이지 수 급증
+  * 하루 1회 이하로 rate limit
+
+## 9. Admin은 무엇을 관리할 수 있어야 하는가?
+
+**직답:** 품질 게이트·잡·연동 상태·플랜 플래그를 관리하고, 최소한 서비스가 "죽지 않게" 모니터링·제어할 수 있어야 한다.
+
+### 9.1 Admin Dashboard
+
+* 카드:
+  * 전체 사용자 수, 활성 사이트 수
+  * 지난 24시간 크롤 실패 수
+  * 지난 7일 생성 이슈/해결 이슈 개수
+* 테이블:
+  * 최근 실패한 CrawlJob 목록 (site, 에러, 재시도 버튼)
+
+### 9.2 Quality Gates (규칙만 정의, 실제 적용은 서비스 쪽에서)
+
+MVP에서는 "문서 발행" 프로세스까지 구현하지 않을 수 있으므로, 우선 **규칙 엔진 구조**만 정의.
+
+* 규칙 예:
+  * Title 45–60자
+  * Meta description 80–160자
+  * H2 질문형 + 바로 아래 110자 이내 요약
+  * JSON-LD 유효성
+* Admin에서 규칙 on/off, 임계값 수정 가능하게 설계(실제 적용은 후속 PR에서도 좋음)
+
+### 9.3 Jobs
+
+* 리스트:
+  * job type (weekly_audit, sitemap_submit, indexnow_ping …)
+  * last_run_at, last_status
+* 기능:
+  * 특정 job 수동 실행
+  * 에러 메시지 확인
+
+### 9.4 플랜·유저 관리
+
+* /admin/settings:
+  * 사용자 검색(email)
+  * plan 변경 (trial_basic → basic/pro/enterprise)
+  * 강제 trial 연장, 계정 정지
+
+## 10. 기술 스택과 비기능 요구사항은 무엇인가?
+
+**직답:** FE는 Next.js, BE는 Cloudflare Functions/Node, DB는 D1 + KV/Queue, 크론은 Cloudflare Cron. MVP 기준 성능·보안·로깅 최소 기준만 준수.
+
+### 10.1 기술 스택
+
+* Frontend:
+  * Next.js(App Router), React, TypeScript
+  * TailwindCSS, shadcn/ui
+* Backend:
+  * Cloudflare Workers/Functions (Edge 친화)
+  * Node/TypeScript 기반 API 핸들러
+* DB:
+  * Cloudflare D1 (주요 테이블)
+  * KV/Queue (크롤 jobs 및 캐시)
+* 크롤러:
+  * Headless Chromium (Playwright/Puppeteer 대체 가능) or HTTP 기반 크롤러 + HTML 파서
+* 외부 서비스:
+  * OpenAI API (AI 메타 생성)
+  * Google APIs (Search Console, Analytics)
+  * IndexNow API
+
+### 10.2 비기능 요구사항
+
+* 성능:
+  * 일반 대시보드 응답시간 p95 < 1.5s (데이터 크기 제한 내)
+* 보안:
+  * HTTPS only
+  * JWT 기반 세션, 비밀번호 해시는 bcrypt
+  * 관리자 페이지 RBAC
+* 가용성:
+  * 크롤 실패해도 서비스 전체에 영향 없도록 완전 비동기 큐 처리
+* 로깅:
+  * 모든 크롤 job의 상태/에러 로깅
+  * 주요 API 호출 실패 시 Sentry 등 연동 고려
+
+## 11. 플랜·제약·MVP 범위 요약
+
+**직답:** MVP에서는 "실제 카드 결제 없이 플랜 플래그로 행동 제한"만 구현하고, 나머지는 기능 전반이 동작하는지 검증하는 단계로 본다.
+
+### 11.1 플랜별 제약 요약
+
+| 플랜          | 사이트 수 | 사이트당 페이지 | 자동 감사 | 수동 재실행 | 비고  |
+| ----------- | ----- | -------- | ----- | ------ | --- |
+| trial_basic | 1     | 500      | 주 1회  | 주 1회   | 14일 |
+| basic       | 5     | 2,000    | 주 1회  | 주 2회   |     |
+| pro         | 15    | 5,000    | 주 1회  | 무제한    |     |
+| enterprise  | 50+   | 10,000+  | 주 1회  | 무제한    | 커스텀 |
+
+### 11.2 MVP 완료 정의(DoD)
+
+* 사용자는:
+  * 가입 후 첫 사이트를 등록하고,
+  * 첫 감사 완료 메일을 받고,
+  * 대시보드에서 이슈 목록과 기본 인사이트(GSC/GA 연결 시)를 확인할 수 있어야 한다.
+* 시스템은:
+  * 주간 자동 감사 크론이 동작하고,
+  * Crawl 실패/심각 이슈를 Admin에서 확인·재시도할 수 있어야 한다.
+* 네이버 관련:
+  * 최소한 "네이버 검색에서 site:도메인 노출 여부 + 대표 URL 몇 개"가 Search 탭에 표시된다.
+
