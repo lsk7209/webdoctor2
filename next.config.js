@@ -12,6 +12,8 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '2mb',
     },
+    // 정적 최적화 비활성화
+    optimizePackageImports: [],
   },
   
   // Cloudflare 환경 변수 처리
