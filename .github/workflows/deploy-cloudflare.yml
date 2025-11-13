@@ -27,41 +27,9 @@ jobs:
 
       - name: Build for Cloudflare Pages
         run: |
-          set +e
-          npm run build 2>&1 | tee build.log
-          BUILD_EXIT_CODE=$?
-          set -e
-          
-          # 빌드 로그에서 정적 생성 오류만 있는지 확인
-          if [ $BUILD_EXIT_CODE -ne 0 ]; then
-            echo "⚠️ Build encountered errors (exit code: $BUILD_EXIT_CODE)"
-            
-            # .next 디렉토리 존재 확인
-            if [ ! -d ".next" ]; then
-              echo "❌ Error: Build failed and .next directory not found"
-              echo "📋 Build log:"
-              cat build.log
-              exit 1
-            fi
-            
-            # 정적 생성 오류만 있는지 확인 (404/500 페이지)
-            if grep -q "Error occurred prerendering page" build.log && \
-               grep -q "/404\|/500" build.log && \
-               grep -q "<Html> should not be imported" build.log; then
-              echo "✅ Static generation errors detected for /404 and /500 pages"
-              echo "ℹ️  These errors are expected and can be ignored for Cloudflare Pages"
-              echo "✅ Continuing with Cloudflare Pages conversion..."
-            else
-              echo "❌ Unexpected build errors detected:"
-              cat build.log
-              exit 1
-            fi
-          else
-            echo "✅ Next.js build completed successfully!"
-          fi
-          
-          # Cloudflare Pages 변환
-          npm run pages:build
+          # 빌드 스크립트 실행 (오류 처리 포함)
+          chmod +x scripts/build-cloudflare-pages.sh
+          bash scripts/build-cloudflare-pages.sh
         env:
           NODE_ENV: production
           JWT_SECRET: ${{ secrets.JWT_SECRET || 'temp-secret-for-build' }}
@@ -72,7 +40,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: koreseo
+          projectName: webdoctor
           directory: .vercel/output/static
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-

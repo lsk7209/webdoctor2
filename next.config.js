@@ -14,8 +14,12 @@ const nextConfig = {
     },
     // 정적 최적화 비활성화
     optimizePackageImports: [],
-    // 정적 생성 재시도 비활성화
+    // 정적 생성 재시도 완전 비활성화
     staticGenerationRetryCount: 0,
+    // 정적 생성 동시성 제한 (최소화)
+    staticGenerationMaxConcurrency: 1,
+    // 정적 생성 최소 페이지 수 (최대화하여 비활성화)
+    staticGenerationMinPagesPerWorker: 999999,
   },
   
   // Cloudflare 환경 변수 처리
@@ -106,19 +110,33 @@ const nextConfig = {
       return !pluginName.includes('StaticPage') && 
              !pluginName.includes('StaticGeneration') &&
              !pluginName.includes('Prerender') &&
-             !pluginName.includes('Export');
+             !pluginName.includes('Export') &&
+             !pluginName.includes('Static');
     });
     
     // 빌드 시 정적 생성 완전 차단
     if (!dev && isServer) {
       // 정적 생성 관련 최적화 비활성화
       config.optimization = config.optimization || {};
-      // 정적 생성 관련 플러그인을 더 강력하게 필터링
+      
+      // 정적 생성 관련 minimizer 필터링
       if (config.optimization.minimizer) {
         config.optimization.minimizer = config.optimization.minimizer.filter((minimizer) => {
           const minimizerName = minimizer.constructor.name;
           return !minimizerName.includes('Static');
         });
+      }
+      
+      // 정적 생성 관련 splitChunks 비활성화
+      if (config.optimization.splitChunks) {
+        config.optimization.splitChunks = {
+          ...config.optimization.splitChunks,
+          cacheGroups: {
+            ...config.optimization.splitChunks.cacheGroups,
+            default: false,
+            vendors: false,
+          },
+        };
       }
     }
     
