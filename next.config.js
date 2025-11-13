@@ -9,6 +9,9 @@ const nextConfig = {
   // Cloudflare Edge Runtime 환경에 최적화
   experimental: {
     // Edge Runtime 최적화
+    serverActions: {
+      bodySizeLimit: '2mb',
+    },
   },
   
   // Cloudflare 환경 변수 처리
@@ -26,10 +29,23 @@ const nextConfig = {
   // 정적 생성을 완전히 비활성화
   outputFileTracing: false,
   
+  // 정적 페이지 생성을 완전히 비활성화
+  // Cloudflare Pages는 모든 페이지를 동적으로 렌더링해야 함
+  trailingSlash: false,
+  
   // 이미지 최적화 비활성화 (Cloudflare Pages에서 지원하지 않음)
   images: {
     unoptimized: true,
   },
+  
+  // Cloudflare가 자체 압축을 처리하므로 비활성화
+  compress: false,
+  
+  // 보안: X-Powered-By 헤더 제거
+  poweredByHeader: false,
+  
+  // SWC 최소화 활성화 (빌드 최적화)
+  swcMinify: true,
   
   // Cloudflare Pages: 정적 생성을 완전히 비활성화
   // 모든 페이지를 동적으로 렌더링
@@ -39,6 +55,29 @@ const nextConfig = {
   },
   eslint: {
     ignoreDuringBuilds: false,
+  },
+  
+  // 웹팩 설정 최적화 (Cloudflare Edge Runtime 호환)
+  webpack: (config, { isServer }) => {
+    // 서버 사이드 번들에서 불필요한 모듈 제외
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push({
+        'utf-8-validate': 'commonjs utf-8-validate',
+        'bufferutil': 'commonjs bufferutil',
+      });
+    }
+    
+    // Cloudflare Edge Runtime 호환성을 위한 설정
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      net: false,
+      tls: false,
+      crypto: false,
+    };
+    
+    return config;
   },
 }
 
