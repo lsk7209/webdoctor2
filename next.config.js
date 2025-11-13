@@ -107,13 +107,6 @@ const nextConfig = {
              !pluginName.includes('Export');
     });
     
-    // 정적 생성 완전 차단: 모든 페이지를 동적으로 처리
-    if (!dev && isServer) {
-      // 빌드 시 정적 생성 방지
-      config.optimization = config.optimization || {};
-      config.optimization.minimize = false; // 최소화 비활성화로 정적 생성 방지
-    }
-    
     return config;
   },
 }

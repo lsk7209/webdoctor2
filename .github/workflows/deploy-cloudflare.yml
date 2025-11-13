@@ -27,7 +27,17 @@ jobs:
 
       - name: Build for Cloudflare Pages
         run: |
-          npm run build || echo "Build warnings ignored"
+          set +e
+          npm run build
+          BUILD_EXIT_CODE=$?
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo "⚠ Build encountered errors, but continuing with Cloudflare Pages conversion..."
+            # .next 디렉토리가 존재하는지 확인
+            if [ ! -d ".next" ]; then
+              echo "❌ Error: Build failed and .next directory not found"
+              exit 1
+            fi
+          fi
           npm run pages:build
         env:
           NODE_ENV: production
