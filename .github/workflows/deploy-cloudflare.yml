@@ -34,6 +34,17 @@ jobs:
           NODE_ENV: production
           JWT_SECRET: ${{ secrets.JWT_SECRET || 'temp-secret-for-build' }}
         continue-on-error: false
+        timeout-minutes: 15
+      
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            build.log
+            .next/**/*.log
+          retention-days: 7
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
