@@ -24,7 +24,8 @@ const nextConfig = {
   // 빌드 시 정적 페이지 생성을 완전히 비활성화
   // Cloudflare Pages는 Edge Runtime에서 동적 렌더링을 지원
   generateBuildId: async () => {
-    return 'build-' + Date.now();
+    // 항상 새로운 빌드 ID 생성하여 정적 생성 방지
+    return 'build-' + Date.now() + '-' + Math.random().toString(36).substring(7);
   },
   
   // 모든 페이지를 동적으로 렌더링하도록 강제
@@ -34,6 +35,10 @@ const nextConfig = {
   // 정적 페이지 생성을 완전히 비활성화
   // Cloudflare Pages는 모든 페이지를 동적으로 렌더링해야 함
   trailingSlash: false,
+  
+  // 정적 생성 완전 비활성화를 위한 추가 설정
+  // 에러 페이지와 404 페이지의 정적 생성을 방지
+  skipTrailingSlashRedirect: true,
   
   // 이미지 최적화 비활성화 (Cloudflare Pages에서 지원하지 않음)
   images: {
