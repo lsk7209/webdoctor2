@@ -5,7 +5,8 @@
 
 'use client';
 
-export const dynamic = 'force-dynamic';
+// 클라이언트 컴포넌트에서는 export const dynamic이 작동하지 않음
+// next.config.js에서 전역 설정으로 처리
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';

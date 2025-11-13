@@ -4,7 +4,8 @@
 
 'use client';
 
-export const dynamic = 'force-dynamic';
+// 클라이언트 컴포넌트에서는 export const dynamic이 작동하지 않음
+// 레이아웃에서 처리됨
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';

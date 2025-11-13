@@ -4,7 +4,7 @@
 
 'use client';
 
-export const dynamic = 'force-dynamic';
+// 에러 바운더리는 항상 동적으로 렌더링됨
 
 export default function Error({
   error,
