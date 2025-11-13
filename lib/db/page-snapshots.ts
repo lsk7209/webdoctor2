@@ -140,3 +140,24 @@ export async function createPageSnapshot(
   }
 }
 
+/**
+ * 페이지 스냅샷의 Lighthouse 점수 업데이트
+ */
+export async function updatePageSnapshotLighthouse(
+  db: D1Database,
+  siteId: string,
+  url: string,
+  lighthouseScoreJson: string
+): Promise<void> {
+  const now = getUnixTimestamp();
+
+  await db
+    .prepare(
+      `UPDATE page_snapshots 
+       SET lighthouse_score_json = ?, updated_at = ?
+       WHERE site_id = ? AND url = ?`
+    )
+    .bind(lighthouseScoreJson, now, siteId, url)
+    .run();
+}
+

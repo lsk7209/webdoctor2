@@ -15,6 +15,10 @@ import { getUnixTimestamp } from '@/db/client';
 import { runSiteAudit } from '@/lib/seo/audit';
 import { sendFirstAuditCompleteEmail } from '@/lib/email/notifications';
 import { getCrawlJobsBySiteId } from '@/lib/db/crawl-jobs';
+import { getPageSnapshotsBySiteId } from '@/lib/db/page-snapshots';
+import { selectTopPages } from '@/lib/lighthouse/priority';
+import { getLighthouseScoresBatch } from '@/lib/lighthouse/pagespeed';
+import { updatePageSnapshotLighthouse } from '@/lib/db/page-snapshots';
 
 export interface CrawlQueueMessage {
   siteId: string;
@@ -85,6 +89,37 @@ export async function processCrawlJob(
           structured_data_json: JSON.stringify(parsed.structuredData),
         });
       }
+    }
+
+    // 주요 페이지 선별 (상위 100페이지)
+    const allPages = await getPageSnapshotsBySiteId(db, siteId, 999999);
+    const topPages = selectTopPages(allPages, 100);
+    
+    console.log(`Selected ${topPages.length} top pages for Lighthouse analysis out of ${allPages.length} total pages`);
+
+    // Lighthouse 점수 수집 (주요 페이지만)
+    if (topPages.length > 0) {
+      console.log(`Collecting Lighthouse scores for ${topPages.length} pages...`);
+      const urls = topPages.map((p) => p.url);
+      const lighthouseScores = await getLighthouseScoresBatch(urls, {
+        strategy: 'mobile', // 모바일 우선
+        category: ['performance', 'seo'],
+      });
+
+      // Lighthouse 점수 저장
+      let scoresCollected = 0;
+      for (const [pageUrl, scores] of lighthouseScores.entries()) {
+        if (scores) {
+          await updatePageSnapshotLighthouse(
+            db,
+            siteId,
+            pageUrl,
+            JSON.stringify(scores)
+          );
+          scoresCollected++;
+        }
+      }
+      console.log(`Collected Lighthouse scores for ${scoresCollected} pages`);
     }
 
     // SEO 감사 실행
