@@ -12,10 +12,10 @@ binding = "DB"
 database_name = "webdoctor-db"
 database_id = "bb9a7b36-f877-4d4b-80cf-bf0e1993ca4e"
 
-# Queue 설정 (크롤 작업)
-[[queues]]
-binding = "QUEUE"
-queue = "crawl-queue"
+# Queue 설정은 Cloudflare Pages 대시보드에서 설정해야 합니다
+# Settings > Functions > Queue bindings
+# Binding name: QUEUE
+# Queue: crawl-queue
 
 # 환경 변수 (로컬 개발용)
 [vars]
