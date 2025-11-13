@@ -1,17 +1,9 @@
 /**
  * 에러 페이지
+ * Next.js 특수 파일: 반드시 클라이언트 컴포넌트여야 함
  */
 
-// Cloudflare Pages: 동적 렌더링 강제
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
-import dynamicImport from 'next/dynamic';
-
-// 클라이언트 컴포넌트를 동적으로 로드 (서버 렌더링 비활성화)
-const ErrorPageClient = dynamicImport(() => import('@/components/pages/error-page'), {
-  ssr: false,
-});
+'use client';
 
 export default function Error({
   error,
@@ -20,6 +12,19 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <ErrorPageClient error={error} reset={reset} />;
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-gray-900">오류가 발생했습니다</h1>
+        <p className="mt-4 text-lg text-gray-600">{error.message}</p>
+        <button
+          onClick={reset}
+          className="mt-6 inline-block rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+        >
+          다시 시도
+        </button>
+      </div>
+    </div>
+  );
 }
 
