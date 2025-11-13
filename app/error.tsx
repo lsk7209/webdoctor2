@@ -3,10 +3,14 @@
  * Next.js 특수 파일: 반드시 클라이언트 컴포넌트여야 함
  * 
  * 주의: 클라이언트 컴포넌트이므로 export const runtime은 사용할 수 없음
- * 대신 레이아웃에서 동적 렌더링이 처리됨
+ * 정적 생성이 되지 않도록 명시적으로 설정합니다.
  */
 
 'use client';
+
+// 정적 생성 완전 비활성화 (클라이언트 컴포넌트이지만 명시적으로 설정)
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default function Error({
   error,

@@ -3,10 +3,15 @@
  * Next.js 특수 파일: 반드시 클라이언트 컴포넌트여야 함
  * app/layout.tsx에서 발생한 에러를 처리
  * 
- * 주의: <html> 태그는 Next.js가 자동으로 추가하므로 여기서는 제거
+ * 주의: global-error.tsx는 Next.js 14에서 <html>과 <body> 태그를 포함해야 하는 유일한 파일입니다.
+ * 정적 생성이 되지 않도록 명시적으로 설정합니다.
  */
 
 'use client';
+
+// 정적 생성 완전 비활성화
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default function GlobalError({
   error,

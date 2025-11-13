@@ -14,12 +14,6 @@ const nextConfig = {
     },
     // 정적 최적화 비활성화
     optimizePackageImports: [],
-    // 정적 생성 재시도 완전 비활성화
-    staticGenerationRetryCount: 0,
-    // 정적 생성 동시성 제한 (최소화)
-    staticGenerationMaxConcurrency: 1,
-    // 정적 생성 최소 페이지 수 (최대화하여 비활성화)
-    staticGenerationMinPagesPerWorker: 999999,
   },
   
   // Cloudflare 환경 변수 처리
