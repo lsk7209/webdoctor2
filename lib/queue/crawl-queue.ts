@@ -12,6 +12,7 @@ import { updateCrawlJobStatus } from '@/lib/db/crawl-jobs';
 import { updateSiteStatus } from '@/lib/db/sites';
 import { getPlanLimits } from '@/lib/plans';
 import { getUnixTimestamp } from '@/db/client';
+import { runSiteAudit } from '@/lib/seo/audit';
 
 export interface CrawlQueueMessage {
   siteId: string;
@@ -82,6 +83,11 @@ export async function processCrawlJob(
         });
       }
     }
+
+    // SEO 감사 실행
+    console.log(`Running SEO audit for site ${siteId}...`);
+    const issueCount = await runSiteAudit(db, siteId);
+    console.log(`SEO audit completed. Found ${issueCount} issues.`);
 
     // 크롤 작업 완료
     await updateCrawlJobStatus(db, crawlJobId, 'completed');

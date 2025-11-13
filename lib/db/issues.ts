@@ -7,6 +7,21 @@ import type { Issue } from '@/db/schema';
 import { generateId, getUnixTimestamp } from '@/db/client';
 
 /**
+ * ID로 이슈 조회
+ */
+export async function getIssueById(
+  db: D1Database,
+  id: string
+): Promise<Issue | null> {
+  const result = await db
+    .prepare('SELECT * FROM issues WHERE id = ?')
+    .bind(id)
+    .first<Issue>();
+
+  return result || null;
+}
+
+/**
  * 사이트 ID로 이슈 목록 조회
  */
 export async function getIssuesBySiteId(
