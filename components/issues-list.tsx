@@ -30,6 +30,7 @@ interface IssuesListProps {
 export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: IssuesListProps) {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [filters, setFilters] = useState({
     severity: '' as '' | 'high' | 'medium' | 'low',
     status: '' as '' | 'open' | 'in_progress' | 'resolved' | 'ignored',
@@ -52,6 +53,7 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
 
   const fetchIssues = async () => {
     setLoading(true);
+    setError('');
     try {
       const params = new URLSearchParams();
       if (filters.severity) params.append('severity', filters.severity);
@@ -64,9 +66,12 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
       if (response.ok && data.data) {
         setIssues(data.data.issues || []);
         setStats(data.data.stats || stats);
+      } else {
+        setError(data.error || '이슈 목록을 불러오는데 실패했습니다.');
       }
-    } catch (error) {
-      console.error('이슈 목록 조회 실패:', error);
+    } catch (err) {
+      setError('이슈 목록을 불러오는 중 오류가 발생했습니다.');
+      console.error('이슈 목록 조회 실패:', err);
     } finally {
       setLoading(false);
     }
@@ -106,15 +111,24 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
       duplicate_title: '중복 Title',
       short_description: '짧은 Description',
       long_description: '긴 Description',
+      missing_description: 'Description 누락',
       no_h1: 'H1 없음',
       multiple_h1: '여러 H1',
       broken_internal_link: '깨진 링크',
       no_canonical_on_parameterized: 'Canonical 누락',
       slow_page: '느린 페이지',
+      low_seo_score: '낮은 SEO 점수',
       no_structured_data: '구조화 데이터 없음',
+      poor_heading_structure: '헤딩 구조 문제',
+      missing_open_graph: 'Open Graph 태그 없음',
     };
     return labels[type] || type;
   };
+
+  // 사용 가능한 이슈 타입 목록 (고유값 추출)
+  const availableIssueTypes = Array.from(
+    new Set(issues.map((issue) => issue.issue_type))
+  ).sort();
 
   if (loading) {
     return (
@@ -167,23 +181,35 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
           <option value="ignored">무시됨</option>
         </select>
 
-        <input
-          type="text"
-          placeholder="이슈 타입 검색..."
+        <select
           value={filters.issue_type}
           onChange={(e) =>
             setFilters({ ...filters, issue_type: e.target.value })
           }
           className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-        />
+        >
+          <option value="">모든 이슈 타입</option>
+          {availableIssueTypes.map((type) => (
+            <option key={type} value={type}>
+              {getIssueTypeLabel(type)}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* 이슈 목록 */}
-      {issues.length === 0 ? (
-        <div className="py-12 text-center">
-          <p className="text-gray-500">이슈가 없습니다.</p>
+      {/* 에러 메시지 */}
+      {error && (
+        <div className="mb-4 rounded-md bg-red-50 p-4">
+          <p className="text-sm text-red-800">{error}</p>
         </div>
-      ) : (
+      )}
+
+      {/* 이슈 목록 */}
+      {!loading && !error && issues.length === 0 ? (
+        <div className="py-12 text-center">
+          <p className="text-gray-500">필터 조건에 맞는 이슈가 없습니다.</p>
+        </div>
+      ) : !loading && !error ? (
         <div className="space-y-3">
           {issues.map((issue) => (
             <div
@@ -233,7 +259,7 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
             </div>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
