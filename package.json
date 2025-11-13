@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:cloudflare": "next build && npx @cloudflare/next-on-pages --experimental-static",
+    "build:pages": "bash scripts/build-cloudflare-pages.sh",
     "build:cloudflare:safe": "node scripts/build-cloudflare.js || (npm run build && npm run pages:build)",
     "start": "next start",
     "lint": "next lint",
