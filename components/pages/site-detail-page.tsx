@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import CrawlStatus from '@/components/crawl-status';
 
 interface Site {
   id: string;
@@ -100,7 +101,10 @@ export default function SiteDetailPageClient() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            {/* 크롤 진행 상태 */}
+            <CrawlStatus siteId={siteId} siteStatus={site.status} />
+
+            <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               <h2 className="mb-4 text-xl font-semibold text-gray-900">
                 사이트 정보
               </h2>

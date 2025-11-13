@@ -12,6 +12,8 @@ import { canAddSite, getPlanLimits } from '@/lib/plans';
 import { getUserById } from '@/lib/db/users';
 import { getD1Database } from '@/lib/cloudflare/env';
 import { normalizeUrl, sanitizeString } from '@/utils/validation';
+import { createCrawlJob } from '@/lib/db/crawl-jobs';
+import { enqueueCrawlJob } from '@/lib/queue/crawl-queue';
 import {
   unauthorizedResponse,
   forbiddenResponse,
@@ -139,6 +141,33 @@ export async function POST(request: NextRequest) {
       page_limit: limits.maxPagesPerSite,
     });
 
+    // 크롤 작업 생성 및 시작
+    let crawlJobId: string | null = null;
+    try {
+      const crawlJob = await createCrawlJob(db, site.id);
+      crawlJobId = crawlJob.id;
+
+      // 큐에 작업 추가 (비동기 처리)
+      try {
+        await enqueueCrawlJob(
+          {
+            siteId: site.id,
+            crawlJobId: crawlJob.id,
+            url: site.url,
+            userPlan: user.plan,
+          },
+          request
+        );
+      } catch (queueError) {
+        // Queue가 없으면 직접 처리 (개발 환경)
+        console.warn('Queue를 사용할 수 없습니다:', queueError);
+        // 개발 환경에서는 직접 처리하거나 경고만 표시
+      }
+    } catch (crawlError) {
+      // 크롤 작업 생성 실패는 사이트 등록을 막지 않음
+      console.error('크롤 작업 생성 실패:', crawlError);
+    }
+
     return successResponse(
       {
         site: {
@@ -147,8 +176,9 @@ export async function POST(request: NextRequest) {
           display_name: site.display_name,
           status: site.status,
         },
+        crawlJobId,
       },
-      '사이트가 등록되었습니다.',
+      '사이트가 등록되었습니다. 크롤링이 시작되었습니다.',
       201
     );
   } catch (error) {
