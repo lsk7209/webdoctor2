@@ -2,11 +2,9 @@
  * 인증 유틸리티 함수
  * 비밀번호 해싱, JWT 토큰 생성/검증
  * 
- * 주의: bcryptjs는 Edge Runtime에서 완전히 작동하지 않을 수 있습니다.
- * 실제 Cloudflare Workers 환경에서 테스트 필요.
+ * Edge Runtime 호환: Web Crypto API 사용 (bcryptjs 대체)
  */
 
-import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -18,23 +16,107 @@ export interface JWTPayload {
 }
 
 /**
- * 비밀번호 해싱
- * 주의: bcryptjs는 Edge Runtime에서 문제가 될 수 있습니다.
- * 실제 배포 시 Cloudflare Workers 환경에서 테스트 필요.
+ * 비밀번호 해싱 (Edge Runtime 호환 - PBKDF2 사용)
+ * Web Crypto API를 사용하여 Edge Runtime에서 작동
  */
 export async function hashPassword(password: string): Promise<string> {
-  const salt = await bcrypt.genSalt(10);
-  return bcrypt.hash(password, salt);
+  const encoder = new TextEncoder();
+  const passwordData = encoder.encode(password);
+  
+  // Salt 생성 (랜덤 16바이트)
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  
+  // PBKDF2를 사용한 키 파생 (100,000회 반복)
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    passwordData,
+    'PBKDF2',
+    false,
+    ['deriveBits']
+  );
+  
+  const hashBuffer = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: salt,
+      iterations: 100000,
+      hash: 'SHA-256',
+    },
+    keyMaterial,
+    256 // 256비트 = 32바이트
+  );
+  
+  // Salt와 해시를 결합하여 저장
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const saltArray = Array.from(salt);
+  
+  // Base64로 인코딩하여 저장: "salt:hash"
+  const saltBase64 = btoa(String.fromCharCode(...saltArray));
+  const hashBase64 = btoa(String.fromCharCode(...hashArray));
+  
+  return `${saltBase64}:${hashBase64}`;
 }
 
 /**
- * 비밀번호 검증
+ * 비밀번호 검증 (Edge Runtime 호환)
  */
 export async function verifyPassword(
   password: string,
   hashedPassword: string
 ): Promise<boolean> {
-  return bcrypt.compare(password, hashedPassword);
+  try {
+    const [saltBase64, hashBase64] = hashedPassword.split(':');
+    
+    if (!saltBase64 || !hashBase64) {
+      return false;
+    }
+    
+    // Base64 디코딩
+    const salt = Uint8Array.from(atob(saltBase64), c => c.charCodeAt(0));
+    const storedHash = Uint8Array.from(atob(hashBase64), c => c.charCodeAt(0));
+    
+    const encoder = new TextEncoder();
+    const passwordData = encoder.encode(password);
+    
+    // 동일한 방식으로 해시 생성
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      passwordData,
+      'PBKDF2',
+      false,
+      ['deriveBits']
+    );
+    
+    const hashBuffer = await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        salt: salt,
+        iterations: 100000,
+        hash: 'SHA-256',
+      },
+      keyMaterial,
+      256
+    );
+    
+    const computedHash = new Uint8Array(hashBuffer);
+    
+    // 해시 비교 (타이밍 공격 방지를 위한 상수 시간 비교)
+    if (computedHash.length !== storedHash.length) {
+      return false;
+    }
+    
+    let isEqual = true;
+    for (let i = 0; i < computedHash.length; i++) {
+      if (computedHash[i] !== storedHash[i]) {
+        isEqual = false;
+      }
+    }
+    
+    return isEqual;
+  } catch (error) {
+    console.error('Password verification error:', error);
+    return false;
+  }
 }
 
 /**
