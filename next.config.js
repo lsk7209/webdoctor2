@@ -59,9 +59,8 @@ const nextConfig = {
     ignoreDuringBuilds: false,
   },
   
-  // 정적 생성 오류를 무시하고 빌드 계속 진행
-  // Cloudflare Pages는 모든 페이지를 동적으로 렌더링하므로 정적 생성 오류는 무시 가능
-  // 주의: 이 설정은 정적 생성 오류를 무시하지만, 실제로는 모든 페이지가 동적으로 렌더링됨
+  // 정적 생성 완전 차단
+  // Cloudflare Pages는 모든 페이지를 동적으로 렌더링해야 함
   onDemandEntries: {
     // 페이지를 메모리에 유지하여 정적 생성 방지
     maxInactiveAge: 25 * 1000,
@@ -116,14 +115,6 @@ const nextConfig = {
     }
     
     return config;
-  },
-  
-  // 빌드 시 정적 생성 완전 차단
-  // Cloudflare Pages는 모든 페이지를 동적으로 렌더링해야 함
-  onDemandEntries: {
-    // 페이지를 메모리에 유지하여 정적 생성 방지
-    maxInactiveAge: 25 * 1000,
-    pagesBufferLength: 2,
   },
 }
 
