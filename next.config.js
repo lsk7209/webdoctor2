@@ -2,7 +2,8 @@
 const nextConfig = {
   reactStrictMode: true,
   // Cloudflare Pages 호환성
-  output: 'standalone',
+  // @cloudflare/next-on-pages를 사용할 때는 output 설정 불필요
+  // output: 'standalone', // Cloudflare Pages에서는 제거
   experimental: {
     // Edge Runtime 최적화
   },
@@ -13,4 +14,3 @@ const nextConfig = {
 }
 
 module.exports = nextConfig
-

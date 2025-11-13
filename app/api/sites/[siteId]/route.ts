@@ -9,6 +9,15 @@ import { getSession } from '@/lib/auth/session';
 import { getSiteById, deleteSite } from '@/lib/db/sites';
 import { getWorkspaceByOwnerId } from '@/lib/db/workspaces';
 import { getD1Database } from '@/lib/cloudflare/env';
+import { validateSiteId } from '@/utils/validation';
+import {
+  unauthorizedResponse,
+  forbiddenResponse,
+  notFoundResponse,
+  databaseErrorResponse,
+  serverErrorResponse,
+  successResponse,
+} from '@/utils/api-response';
 
 // Edge Runtime 사용 (Cloudflare 호환)
 export const runtime = 'edge';
@@ -23,41 +32,38 @@ export async function GET(
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json(
-        { error: '인증이 필요합니다.' },
-        { status: 401 }
-      );
+      return unauthorizedResponse();
     }
 
     const { siteId } = params;
 
-    const db = getD1Database();
-    if (!db) {
+    // siteId 검증
+    const siteIdValidation = validateSiteId(siteId);
+    if (!siteIdValidation.valid) {
       return NextResponse.json(
-        { error: '데이터베이스 연결을 사용할 수 없습니다. Cloudflare 환경에서 실행해주세요.' },
-        { status: 503 }
+        { error: siteIdValidation.error },
+        { status: 400 }
       );
+    }
+
+    const db = getD1Database(request);
+    if (!db) {
+      return databaseErrorResponse();
     }
 
     // 사이트 조회
     const site = await getSiteById(db, siteId);
     if (!site) {
-      return NextResponse.json(
-        { error: '사이트를 찾을 수 없습니다.' },
-        { status: 404 }
-      );
+      return notFoundResponse('사이트');
     }
 
     // 권한 확인 (워크스페이스 소유자 확인)
     const workspace = await getWorkspaceByOwnerId(db, session.userId);
     if (!workspace || site.workspace_id !== workspace.id) {
-      return NextResponse.json(
-        { error: '권한이 없습니다.' },
-        { status: 403 }
-      );
+      return forbiddenResponse();
     }
 
-    return NextResponse.json({
+    return successResponse({
       site: {
         id: site.id,
         url: site.url,
@@ -72,11 +78,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('Get site error:', error);
-    return NextResponse.json(
-      { error: '사이트 정보를 불러오는 중 오류가 발생했습니다.' },
-      { status: 500 }
-    );
+    return serverErrorResponse('사이트 정보를 불러오는 중 오류가 발생했습니다.', error);
   }
 }
 
@@ -90,51 +92,41 @@ export async function DELETE(
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json(
-        { error: '인증이 필요합니다.' },
-        { status: 401 }
-      );
+      return unauthorizedResponse();
     }
 
     const { siteId } = params;
 
-    const db = getD1Database();
-    if (!db) {
+    // siteId 검증
+    const siteIdValidation = validateSiteId(siteId);
+    if (!siteIdValidation.valid) {
       return NextResponse.json(
-        { error: '데이터베이스 연결을 사용할 수 없습니다. Cloudflare 환경에서 실행해주세요.' },
-        { status: 503 }
+        { error: siteIdValidation.error },
+        { status: 400 }
       );
+    }
+
+    const db = getD1Database(request);
+    if (!db) {
+      return databaseErrorResponse();
     }
 
     // 사이트 조회 및 권한 확인
     const site = await getSiteById(db, siteId);
     if (!site) {
-      return NextResponse.json(
-        { error: '사이트를 찾을 수 없습니다.' },
-        { status: 404 }
-      );
+      return notFoundResponse('사이트');
     }
 
     const workspace = await getWorkspaceByOwnerId(db, session.userId);
     if (!workspace || site.workspace_id !== workspace.id) {
-      return NextResponse.json(
-        { error: '권한이 없습니다.' },
-        { status: 403 }
-      );
+      return forbiddenResponse();
     }
 
     // 사이트 삭제
     await deleteSite(db, siteId);
 
-    return NextResponse.json(
-      { message: '사이트가 삭제되었습니다.' },
-      { status: 200 }
-    );
+    return successResponse(undefined, '사이트가 삭제되었습니다.');
   } catch (error) {
-    console.error('Delete site error:', error);
-    return NextResponse.json(
-      { error: '사이트 삭제 중 오류가 발생했습니다.' },
-      { status: 500 }
-    );
+    return serverErrorResponse('사이트 삭제 중 오류가 발생했습니다.', error);
   }
 }

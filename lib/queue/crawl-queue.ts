@@ -22,9 +22,14 @@ export interface CrawlQueueMessage {
 
 /**
  * 크롤 작업을 큐에 추가
+ * @param message 크롤 작업 메시지
+ * @param request Request 객체 (선택사항, Queue 바인딩 접근용)
  */
-export async function enqueueCrawlJob(message: CrawlQueueMessage): Promise<void> {
-  const queue = getQueue();
+export async function enqueueCrawlJob(
+  message: CrawlQueueMessage,
+  request?: Request
+): Promise<void> {
+  const queue = getQueue(request);
   if (!queue) {
     throw new Error('Queue를 사용할 수 없습니다. Cloudflare 환경에서 실행해주세요.');
   }

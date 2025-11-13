@@ -24,9 +24,11 @@ const config: Config = {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
+          DEFAULT: "#1d4196",
+          foreground: "#ffffff",
         },
+        "background-light": "#f6f6f8",
+        "background-dark": "#121620",
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
@@ -53,9 +55,12 @@ const config: Config = {
         },
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
+        DEFAULT: "0.5rem",
+        lg: "1rem",
+        xl: "1.5rem",
+        full: "9999px",
         sm: "calc(var(--radius) - 4px)",
+        md: "calc(var(--radius) - 2px)",
       },
       keyframes: {
         "accordion-down": {
@@ -70,6 +75,10 @@ const config: Config = {
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+      },
+      fontFamily: {
+        display: ["Manrope", "Noto Sans KR", "sans-serif"],
+        sans: ["Noto Sans KR", "Manrope", "sans-serif"],
       },
     },
   },

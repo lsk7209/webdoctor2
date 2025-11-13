@@ -33,7 +33,7 @@ export async function POST(
 
     const { siteId } = params;
 
-    const db = getD1Database();
+    const db = getD1Database(request);
     if (!db) {
       return NextResponse.json(
         { error: '데이터베이스 연결을 사용할 수 없습니다. Cloudflare 환경에서 실행해주세요.' },

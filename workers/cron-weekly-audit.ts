@@ -5,9 +5,7 @@
 
 import type { D1Database } from '@/db/client';
 import { getSitesByWorkspaceId } from '@/lib/db/sites';
-import { getWorkspaceByOwnerId } from '@/lib/db/workspaces';
 import { createCrawlJob } from '@/lib/db/crawl-jobs';
-import { enqueueCrawlJob } from '@/lib/queue/crawl-queue';
 import { getUserById } from '@/lib/db/users';
 
 export interface ScheduledEvent {
@@ -49,7 +47,7 @@ export default {
         for (const site of sites) {
           // 크롤 작업 생성 및 큐에 추가
           const crawlJob = await createCrawlJob(env.DB, site.id);
-          await enqueueCrawlJob({
+          await env.QUEUE.send({
             siteId: site.id,
             crawlJobId: crawlJob.id,
             url: site.url,

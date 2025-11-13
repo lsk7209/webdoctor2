@@ -2,11 +2,15 @@ name = "koreseo"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
+# Cloudflare Pages 설정 (BETA)
+# Pages에서 wrangler.toml을 사용할 때 필요
+pages_build_output_dir = ".vercel/output/static"
+
 # D1 데이터베이스 설정
 [[d1_databases]]
 binding = "DB"
-database_name = "koreseo-db"
-database_id = "" # Cloudflare 대시보드에서 생성 후 ID 입력
+database_name = "webdoctor-db"
+database_id = "bb9a7b36-f877-4d4b-80cf-bf0e1993ca4e"
 
 # Queue 설정 (크롤 작업)
 [[queues]]

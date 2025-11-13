@@ -11,6 +11,16 @@ import { getSitesByWorkspaceId, createSite, getSiteByUrl } from '@/lib/db/sites'
 import { canAddSite, getPlanLimits } from '@/lib/plans';
 import { getUserById } from '@/lib/db/users';
 import { getD1Database } from '@/lib/cloudflare/env';
+import { normalizeUrl, sanitizeString } from '@/utils/validation';
+import {
+  unauthorizedResponse,
+  forbiddenResponse,
+  notFoundResponse,
+  databaseErrorResponse,
+  serverErrorResponse,
+  successResponse,
+  errorResponse,
+} from '@/utils/api-response';
 
 // Edge Runtime 사용 (Cloudflare 호환)
 export const runtime = 'edge';
@@ -22,42 +32,30 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json(
-        { error: '인증이 필요합니다.' },
-        { status: 401 }
-      );
+      return unauthorizedResponse();
     }
 
-    const db = getD1Database();
+    const db = getD1Database(request);
     if (!db) {
-      return NextResponse.json(
-        { error: '데이터베이스 연결을 사용할 수 없습니다. Cloudflare 환경에서 실행해주세요.' },
-        { status: 503 }
-      );
+      return databaseErrorResponse();
     }
 
     // 사용자 정보 조회
     const user = await getUserById(db, session.userId);
     if (!user) {
-      return NextResponse.json(
-        { error: '사용자를 찾을 수 없습니다.' },
-        { status: 404 }
-      );
+      return notFoundResponse('사용자');
     }
 
     // 워크스페이스 조회
     const workspace = await getWorkspaceByOwnerId(db, session.userId);
     if (!workspace) {
-      return NextResponse.json(
-        { error: '워크스페이스를 찾을 수 없습니다.' },
-        { status: 404 }
-      );
+      return notFoundResponse('워크스페이스');
     }
 
     // 사이트 목록 조회
     const sites = await getSitesByWorkspaceId(db, workspace.id);
 
-    return NextResponse.json({
+    return successResponse({
       sites: sites.map((site) => ({
         id: site.id,
         url: site.url,
@@ -68,11 +66,7 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (error) {
-    console.error('Get sites error:', error);
-    return NextResponse.json(
-      { error: '사이트 목록을 불러오는 중 오류가 발생했습니다.' },
-      { status: 500 }
-    );
+    return serverErrorResponse('사이트 목록을 불러오는 중 오류가 발생했습니다.', error);
   }
 }
 
@@ -83,79 +77,70 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json(
-        { error: '인증이 필요합니다.' },
-        { status: 401 }
-      );
+      return unauthorizedResponse();
     }
 
-    const body = await request.json();
+    // JSON 파싱 에러 처리
+    let body;
+    try {
+      body = await request.json();
+    } catch (error) {
+      return errorResponse('요청 본문을 파싱할 수 없습니다.', 400, 'INVALID_JSON');
+    }
+
     const { url, display_name } = body;
 
-    // 입력 검증
-    if (!url) {
-      return NextResponse.json(
-        { error: '사이트 URL을 입력해주세요.' },
-        { status: 400 }
-      );
+    // URL 검증 및 정규화
+    const urlValidation = normalizeUrl(url);
+    if (urlValidation.error) {
+      return errorResponse(urlValidation.error, 400, 'INVALID_URL');
     }
 
-    const db = getD1Database();
+    // display_name 정규화 (선택사항)
+    const sanitizedDisplayName = display_name
+      ? sanitizeString(display_name, 200)
+      : undefined;
+
+    const db = getD1Database(request);
     if (!db) {
-      return NextResponse.json(
-        { error: '데이터베이스 연결을 사용할 수 없습니다. Cloudflare 환경에서 실행해주세요.' },
-        { status: 503 }
-      );
+      return databaseErrorResponse();
     }
 
     // 사용자 정보 조회
     const user = await getUserById(db, session.userId);
     if (!user) {
-      return NextResponse.json(
-        { error: '사용자를 찾을 수 없습니다.' },
-        { status: 404 }
-      );
+      return notFoundResponse('사용자');
     }
 
     // 워크스페이스 조회
     const workspace = await getWorkspaceByOwnerId(db, session.userId);
     if (!workspace) {
-      return NextResponse.json(
-        { error: '워크스페이스를 찾을 수 없습니다.' },
-        { status: 404 }
-      );
+      return notFoundResponse('워크스페이스');
     }
 
     // 플랜 제한 확인
     const canAdd = await canAddSite(db, workspace.id, user.plan);
     if (!canAdd.allowed) {
-      return NextResponse.json(
-        { error: canAdd.reason },
-        { status: 403 }
-      );
+      return forbiddenResponse(canAdd.reason);
     }
 
     // URL 중복 확인
-    const existingSite = await getSiteByUrl(db, workspace.id, url);
+    const existingSite = await getSiteByUrl(db, workspace.id, urlValidation.url);
     if (existingSite) {
-      return NextResponse.json(
-        { error: '이미 등록된 사이트입니다.' },
-        { status: 409 }
-      );
+      return errorResponse('이미 등록된 사이트입니다.', 409, 'DUPLICATE_SITE');
     }
 
     // 사이트 생성
     const limits = getPlanLimits(user.plan);
     const site = await createSite(db, {
       workspace_id: workspace.id,
-      url,
-      display_name,
+      url: urlValidation.url,
+      display_name: sanitizedDisplayName,
       page_limit: limits.maxPagesPerSite,
     });
 
-    return NextResponse.json(
+    return successResponse(
       {
-        message: '사이트가 등록되었습니다.',
         site: {
           id: site.id,
           url: site.url,
@@ -163,13 +148,10 @@ export async function POST(request: NextRequest) {
           status: site.status,
         },
       },
-      { status: 201 }
+      '사이트가 등록되었습니다.',
+      201
     );
   } catch (error) {
-    console.error('Create site error:', error);
-    return NextResponse.json(
-      { error: '사이트 등록 중 오류가 발생했습니다.' },
-      { status: 500 }
-    );
+    return serverErrorResponse('사이트 등록 중 오류가 발생했습니다.', error);
   }
 }

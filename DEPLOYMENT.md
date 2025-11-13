@@ -23,7 +23,7 @@
 
 ```bash
 # 로컬에서 D1 데이터베이스 생성
-wrangler d1 create koreseo-db
+wrangler d1 create webdoctor-db
 
 # 생성된 database_id를 wrangler.toml에 입력
 ```
@@ -32,10 +32,10 @@ wrangler d1 create koreseo-db
 
 ```bash
 # 로컬 개발 환경
-wrangler d1 execute koreseo-db --file=./migrations/0001_initial_schema.sql --local
+wrangler d1 execute webdoctor-db --file=./migrations/0001_initial_schema.sql --local
 
 # 프로덕션 환경
-wrangler d1 execute koreseo-db --file=./migrations/0001_initial_schema.sql
+wrangler d1 execute webdoctor-db --file=./migrations/0001_initial_schema.sql
 ```
 
 ### 4. Queue 생성
@@ -80,7 +80,7 @@ wrangler deploy --config workers/cron-weekly-audit.toml
 
 ```bash
 # D1 로컬 데이터베이스와 함께 개발 서버 실행
-wrangler pages dev .next --d1=DB=koreseo-db --queue=QUEUE=crawl-queue
+wrangler pages dev .next --d1=DB=webdoctor-db --queue=QUEUE=crawl-queue
 ```
 
 ### 2. 환경 변수 설정

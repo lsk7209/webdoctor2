@@ -1,12 +1,10 @@
 /**
  * sitemap.xml 파싱 및 URL 추출
+ * Edge Runtime 호환: 정규식 기반 파싱 사용
  */
 
-import { SitemapStream, streamToPromise } from 'sitemap';
-import { parseStringPromise } from 'xml2js';
-
 /**
- * sitemap.xml에서 URL 목록 추출
+ * sitemap.xml에서 URL 목록 추출 (Edge Runtime 호환)
  */
 export async function parseSitemap(sitemapUrl: string): Promise<string[]> {
   try {
@@ -21,29 +19,37 @@ export async function parseSitemap(sitemapUrl: string): Promise<string[]> {
     }
 
     const xml = await response.text();
-    const result = await parseStringPromise(xml);
-
     const urls: string[] = [];
 
     // sitemapindex인 경우 (다른 sitemap들을 참조)
-    if (result.sitemapindex) {
-      const sitemaps = result.sitemapindex.sitemap || [];
-      for (const sitemap of sitemaps) {
-        if (sitemap.loc && sitemap.loc[0]) {
-          // 재귀적으로 하위 sitemap 파싱
-          const subUrls = await parseSitemap(sitemap.loc[0]);
-          urls.push(...subUrls);
-        }
+    // <sitemap><loc>...</loc></sitemap> 패턴 찾기
+    const sitemapIndexRegex = /<sitemap>[\s\S]*?<loc>(.*?)<\/loc>[\s\S]*?<\/sitemap>/gi;
+    const sitemapMatches = xml.matchAll(sitemapIndexRegex);
+    
+    const sitemapUrls: string[] = [];
+    for (const match of sitemapMatches) {
+      if (match[1]) {
+        sitemapUrls.push(match[1].trim());
+      }
+    }
+
+    // sitemapindex가 있으면 재귀적으로 파싱
+    if (sitemapUrls.length > 0) {
+      for (const subSitemapUrl of sitemapUrls) {
+        const subUrls = await parseSitemap(subSitemapUrl);
+        urls.push(...subUrls);
       }
       return urls;
     }
 
     // 일반 sitemap인 경우
-    if (result.urlset && result.urlset.url) {
-      for (const url of result.urlset.url) {
-        if (url.loc && url.loc[0]) {
-          urls.push(url.loc[0]);
-        }
+    // <url><loc>...</loc></url> 패턴 찾기
+    const urlRegex = /<url>[\s\S]*?<loc>(.*?)<\/loc>[\s\S]*?<\/url>/gi;
+    const urlMatches = xml.matchAll(urlRegex);
+    
+    for (const match of urlMatches) {
+      if (match[1]) {
+        urls.push(match[1].trim());
       }
     }
 

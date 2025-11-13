@@ -7,8 +7,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyToken, getTokenFromCookie } from '@/utils/auth';
 
-// Edge Runtime 사용
-export const runtime = 'edge';
+// Next.js 14.2.33: middleware는 기본적으로 Edge Runtime에서 실행되므로 runtime 선언 불필요
 
 // 인증이 필요한 경로
 const protectedRoutes = ['/dashboard', '/sites', '/reports', '/settings'];
