@@ -60,7 +60,7 @@ const nextConfig = {
   },
   
   // 웹팩 설정 최적화 (Cloudflare Edge Runtime 호환)
-  webpack: (config, { isServer, webpack }) => {
+  webpack: (config, { isServer, webpack, dev }) => {
     // 서버 사이드 번들에서 불필요한 모듈 제외
     if (isServer) {
       config.externals = config.externals || [];
@@ -93,10 +93,28 @@ const nextConfig = {
     config.plugins = config.plugins.filter((plugin) => {
       // 정적 생성 관련 플러그인 제외
       const pluginName = plugin.constructor.name;
-      return !pluginName.includes('StaticPage') && !pluginName.includes('StaticGeneration');
+      return !pluginName.includes('StaticPage') && 
+             !pluginName.includes('StaticGeneration') &&
+             !pluginName.includes('Prerender') &&
+             !pluginName.includes('Export');
     });
     
+    // 정적 생성 완전 차단: 모든 페이지를 동적으로 처리
+    if (!dev && isServer) {
+      // 빌드 시 정적 생성 방지
+      config.optimization = config.optimization || {};
+      config.optimization.minimize = false; // 최소화 비활성화로 정적 생성 방지
+    }
+    
     return config;
+  },
+  
+  // 빌드 시 정적 생성 완전 차단
+  // Cloudflare Pages는 모든 페이지를 동적으로 렌더링해야 함
+  onDemandEntries: {
+    // 페이지를 메모리에 유지하여 정적 생성 방지
+    maxInactiveAge: 25 * 1000,
+    pagesBufferLength: 2,
   },
 }
 
