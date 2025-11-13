@@ -107,6 +107,19 @@ const nextConfig = {
              !pluginName.includes('Export');
     });
     
+    // 빌드 시 정적 생성 완전 차단
+    if (!dev && isServer) {
+      // 정적 생성 관련 최적화 비활성화
+      config.optimization = config.optimization || {};
+      // 정적 생성 관련 플러그인을 더 강력하게 필터링
+      if (config.optimization.minimizer) {
+        config.optimization.minimizer = config.optimization.minimizer.filter((minimizer) => {
+          const minimizerName = minimizer.constructor.name;
+          return !minimizerName.includes('Static');
+        });
+      }
+    }
+    
     return config;
   },
 }
