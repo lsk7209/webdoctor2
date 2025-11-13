@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:cloudflare": "next build && npx @cloudflare/next-on-pages",
+    "build:cloudflare": "next build && npx @cloudflare/next-on-pages --experimental-static",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",

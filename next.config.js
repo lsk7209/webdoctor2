@@ -58,7 +58,7 @@ const nextConfig = {
   },
   
   // 웹팩 설정 최적화 (Cloudflare Edge Runtime 호환)
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, webpack }) => {
     // 서버 사이드 번들에서 불필요한 모듈 제외
     if (isServer) {
       config.externals = config.externals || [];
@@ -75,7 +75,23 @@ const nextConfig = {
       net: false,
       tls: false,
       crypto: false,
+      stream: false,
+      url: false,
+      zlib: false,
+      http: false,
+      https: false,
+      assert: false,
+      os: false,
+      path: false,
     };
+    
+    // 정적 생성 관련 플러그인 제거
+    config.plugins = config.plugins || [];
+    config.plugins = config.plugins.filter((plugin) => {
+      // 정적 생성 관련 플러그인 제외
+      const pluginName = plugin.constructor.name;
+      return !pluginName.includes('StaticPage') && !pluginName.includes('StaticGeneration');
+    });
     
     return config;
   },
