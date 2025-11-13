@@ -1,13 +1,15 @@
 /**
  * 404 Not Found 페이지
  * Next.js 특수 파일: 서버 컴포넌트로 처리하여 정적 생성 방지
+ * Cloudflare Pages 호환: Edge Runtime 사용
  */
 
 import Link from 'next/link';
 
-// Cloudflare Pages: 동적 렌더링 강제
+// Cloudflare Pages: 동적 렌더링 강제 및 Edge Runtime 사용
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const runtime = 'edge'; // Cloudflare Pages에서 필수
 
 export default function NotFound() {
   return (

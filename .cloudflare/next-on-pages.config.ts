@@ -28,8 +28,10 @@ const config: NextOnPagesOptions = {
     
     // 동적 렌더링 강제
     dynamicRendering: true,
+    
+    // 에러 페이지 정적 생성 비활성화
+    skipErrorPages: true,
   },
 };
 
 export default config;
-

@@ -14,6 +14,8 @@ const nextConfig = {
     },
     // 정적 최적화 비활성화
     optimizePackageImports: [],
+    // 정적 생성 재시도 비활성화
+    staticGenerationRetryCount: 0,
   },
   
   // Cloudflare 환경 변수 처리
