@@ -14,6 +14,7 @@ interface Site {
   status: 'pending' | 'crawling' | 'ready' | 'failed';
   last_crawled_at: number | null;
   created_at: number;
+  health_score: number | null;
 }
 
 export default function SitesPageClient() {
@@ -126,6 +127,22 @@ export default function SitesPageClient() {
                   {getStatusBadge(site.status)}
                 </div>
                 <p className="text-sm text-gray-600">{site.url}</p>
+                {site.health_score !== null && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-xs font-medium text-gray-600">Health 점수:</span>
+                    <span
+                      className={`text-sm font-bold ${
+                        site.health_score >= 80
+                          ? 'text-green-600'
+                          : site.health_score >= 50
+                            ? 'text-yellow-600'
+                            : 'text-red-600'
+                      }`}
+                    >
+                      {site.health_score}
+                    </span>
+                  </div>
+                )}
                 {site.last_crawled_at && (
                   <p className="mt-2 text-xs text-gray-500">
                     마지막 분석:{' '}

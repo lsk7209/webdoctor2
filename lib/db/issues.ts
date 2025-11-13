@@ -165,6 +165,26 @@ export async function updateIssueStatus(
 }
 
 /**
+ * 워크스페이스의 모든 사이트에 대한 이슈 목록 조회
+ */
+export async function getIssuesByWorkspaceId(
+  db: D1Database,
+  workspaceId: string
+): Promise<Issue[]> {
+  const result = await db
+    .prepare(
+      `SELECT i.* FROM issues i
+       INNER JOIN sites s ON i.site_id = s.id
+       WHERE s.workspace_id = ?
+       ORDER BY i.severity DESC, i.created_at DESC`
+    )
+    .bind(workspaceId)
+    .all<Issue>();
+
+  return result.results || [];
+}
+
+/**
  * 사이트의 모든 이슈 삭제 (크롤 재실행 시)
  */
 export async function deleteIssuesBySiteId(db: D1Database, siteId: string): Promise<void> {

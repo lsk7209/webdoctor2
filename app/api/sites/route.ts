@@ -8,6 +8,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { getWorkspaceByOwnerId } from '@/lib/db/workspaces';
 import { getSitesByWorkspaceId, createSite, getSiteByUrl } from '@/lib/db/sites';
+import { getIssuesBySiteId } from '@/lib/db/issues';
+import { calculateHealthScore } from '@/lib/seo/health-score';
 import { canAddSite, getPlanLimits } from '@/lib/plans';
 import { getUserById } from '@/lib/db/users';
 import { getD1Database } from '@/lib/cloudflare/env';
@@ -57,15 +59,30 @@ export async function GET(request: NextRequest) {
     // 사이트 목록 조회
     const sites = await getSitesByWorkspaceId(db, workspace.id);
 
+    // 각 사이트의 Health 점수 계산
+    const sitesWithHealth = await Promise.all(
+      sites.map(async (site) => {
+        let healthScore: number | null = null;
+        if (site.status === 'ready') {
+          const issues = await getIssuesBySiteId(db, site.id);
+          const health = calculateHealthScore(issues);
+          healthScore = health.score;
+        }
+
+        return {
+          id: site.id,
+          url: site.url,
+          display_name: site.display_name,
+          status: site.status,
+          last_crawled_at: site.last_crawled_at,
+          created_at: site.created_at,
+          health_score: healthScore,
+        };
+      })
+    );
+
     return successResponse({
-      sites: sites.map((site) => ({
-        id: site.id,
-        url: site.url,
-        display_name: site.display_name,
-        status: site.status,
-        last_crawled_at: site.last_crawled_at,
-        created_at: site.created_at,
-      })),
+      sites: sitesWithHealth,
     });
   } catch (error) {
     return serverErrorResponse('사이트 목록을 불러오는 중 오류가 발생했습니다.', error);
