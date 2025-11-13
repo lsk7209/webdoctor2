@@ -1,0 +1,21 @@
+# Cloudflare Pages 빌드 출력 디렉토리
+.vercel/output/static
+
+# Next.js 빌드 캐시
+.next
+
+# 의존성
+node_modules
+
+# 환경 변수
+.env
+.env.local
+.env.production
+
+# 로그
+*.log
+
+# OS 파일
+.DS_Store
+Thumbs.db
+

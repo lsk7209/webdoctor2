@@ -36,6 +36,7 @@ export default function SiteDetailPage() {
     if (siteId) {
       fetchSite();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteId]);
 
   const fetchSite = async () => {

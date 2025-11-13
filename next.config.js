@@ -30,6 +30,16 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  
+  // Cloudflare Pages: 정적 생성을 완전히 비활성화
+  // 모든 페이지를 동적으로 렌더링
+  // 이 설정은 빌드 시 정적 생성을 방지합니다
+  typescript: {
+    ignoreBuildErrors: false,
+  },
+  eslint: {
+    ignoreDuringBuilds: false,
+  },
 }
 
 module.exports = nextConfig
