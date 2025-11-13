@@ -1,4 +1,8 @@
-import Navigation from '@/components/navigation';
+import dynamic from 'next/dynamic';
+
+const Navigation = dynamic(() => import('@/components/navigation'), {
+  ssr: false,
+});
 
 export const dynamic = 'force-dynamic';
 

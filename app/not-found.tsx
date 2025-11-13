@@ -2,6 +2,8 @@
  * 404 Not Found 페이지
  */
 
+export const dynamic = 'force-dynamic';
+
 export default function NotFound() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
