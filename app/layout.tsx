@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+// Cloudflare Pages: 모든 페이지를 동적으로 렌더링
 export const dynamic = 'force-dynamic';
+export const revalidate = 0; // 캐싱 완전 비활성화
+export const dynamicParams = true; // 동적 파라미터 허용
 
 export const metadata: Metadata = {
   title: "웹닥터 - 웹사이트 SEO 무료 진단",
