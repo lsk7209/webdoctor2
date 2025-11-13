@@ -8,6 +8,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import CrawlStatus from '@/components/crawl-status';
+import HealthScore from '@/components/health-score';
+import IssuesList from '@/components/issues-list';
+import IssueDetailPanel from '@/components/issue-detail-panel';
 
 interface Site {
   id: string;
@@ -21,14 +24,40 @@ interface Site {
   naver_connected: boolean;
 }
 
+interface HealthScoreData {
+  score: number;
+  high: number;
+  medium: number;
+  low: number;
+  total: number;
+}
+
+interface Issue {
+  id: string;
+  site_id: string;
+  page_url: string | null;
+  issue_type: string;
+  severity: 'high' | 'medium' | 'low';
+  status: 'open' | 'in_progress' | 'resolved' | 'ignored';
+  summary: string;
+  description: string | null;
+  fix_hint: string | null;
+  affected_pages_count: number;
+  created_at: number;
+  updated_at: number;
+}
+
 export default function SiteDetailPageClient() {
   const params = useParams();
   const router = useRouter();
   const siteId = params.siteId as string;
 
   const [site, setSite] = useState<Site | null>(null);
+  const [healthScore, setHealthScore] = useState<HealthScoreData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     if (siteId) {
@@ -47,7 +76,8 @@ export default function SiteDetailPageClient() {
         return;
       }
 
-      setSite(data.site);
+      setSite(data.data.site);
+      setHealthScore(data.data.healthScore || null);
     } catch (err) {
       setError('사이트 정보를 불러오는 중 오류가 발생했습니다.');
     } finally {
@@ -103,6 +133,30 @@ export default function SiteDetailPageClient() {
           <div className="lg:col-span-2">
             {/* 크롤 진행 상태 */}
             <CrawlStatus siteId={siteId} siteStatus={site.status} />
+
+            {/* Health 점수 */}
+            {healthScore && site.status === 'ready' && (
+              <div className="mt-6">
+                <HealthScore
+                  score={healthScore.score}
+                  high={healthScore.high}
+                  medium={healthScore.medium}
+                  low={healthScore.low}
+                  total={healthScore.total}
+                />
+              </div>
+            )}
+
+            {/* 이슈 목록 */}
+            {site.status === 'ready' && (
+              <div className="mt-6">
+                <IssuesList
+                  siteId={siteId}
+                  onIssueClick={(issue) => setSelectedIssue(issue)}
+                  refreshTrigger={refreshTrigger}
+                />
+              </div>
+            )}
 
             <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               <h2 className="mb-4 text-xl font-semibold text-gray-900">
@@ -184,6 +238,21 @@ export default function SiteDetailPageClient() {
             </div>
           </div>
         </div>
+
+        {/* 이슈 상세 패널 */}
+        {selectedIssue && (
+          <IssueDetailPanel
+            issue={selectedIssue}
+            onClose={() => setSelectedIssue(null)}
+            onStatusChange={() => {
+              // 이슈 상태 변경 후 목록 새로고침
+              setSelectedIssue(null);
+              setRefreshTrigger((prev) => prev + 1);
+              // 사이트 정보도 다시 불러와서 Health 점수 업데이트
+              fetchSite();
+            }}
+          />
+        )}
       </div>
     </div>
   );

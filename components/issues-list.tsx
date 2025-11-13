@@ -1,0 +1,240 @@
+/**
+ * 이슈 목록 컴포넌트
+ */
+
+'use client';
+
+import { useState, useEffect } from 'react';
+
+interface Issue {
+  id: string;
+  site_id: string;
+  page_url: string | null;
+  issue_type: string;
+  severity: 'high' | 'medium' | 'low';
+  status: 'open' | 'in_progress' | 'resolved' | 'ignored';
+  summary: string;
+  description: string | null;
+  fix_hint: string | null;
+  affected_pages_count: number;
+  created_at: number;
+  updated_at: number;
+}
+
+interface IssuesListProps {
+  siteId: string;
+  onIssueClick?: (issue: Issue) => void;
+  refreshTrigger?: number; // 새로고침 트리거
+}
+
+export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: IssuesListProps) {
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    severity: '' as '' | 'high' | 'medium' | 'low',
+    status: '' as '' | 'open' | 'in_progress' | 'resolved' | 'ignored',
+    issue_type: '',
+  });
+  const [stats, setStats] = useState({
+    total: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    open: 0,
+    in_progress: 0,
+    resolved: 0,
+  });
+
+  useEffect(() => {
+    fetchIssues();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siteId, filters, refreshTrigger]);
+
+  const fetchIssues = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filters.severity) params.append('severity', filters.severity);
+      if (filters.status) params.append('status', filters.status);
+      if (filters.issue_type) params.append('issue_type', filters.issue_type);
+
+      const response = await fetch(`/api/sites/${siteId}/issues?${params.toString()}`);
+      const data = await response.json();
+
+      if (response.ok && data.data) {
+        setIssues(data.data.issues || []);
+        setStats(data.data.stats || stats);
+      }
+    } catch (error) {
+      console.error('이슈 목록 조회 실패:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'high':
+        return 'bg-red-100 text-red-800';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'low':
+        return 'bg-blue-100 text-blue-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'open':
+        return 'bg-red-50 text-red-700';
+      case 'in_progress':
+        return 'bg-yellow-50 text-yellow-700';
+      case 'resolved':
+        return 'bg-green-50 text-green-700';
+      case 'ignored':
+        return 'bg-gray-50 text-gray-700';
+      default:
+        return 'bg-gray-50 text-gray-700';
+    }
+  };
+
+  const getIssueTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      missing_title: 'Title 누락',
+      duplicate_title: '중복 Title',
+      short_description: '짧은 Description',
+      long_description: '긴 Description',
+      no_h1: 'H1 없음',
+      multiple_h1: '여러 H1',
+      broken_internal_link: '깨진 링크',
+      no_canonical_on_parameterized: 'Canonical 누락',
+      slow_page: '느린 페이지',
+      no_structured_data: '구조화 데이터 없음',
+    };
+    return labels[type] || type;
+  };
+
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="animate-pulse">
+          <div className="h-4 w-32 bg-gray-200 rounded mb-4"></div>
+          <div className="space-y-3">
+            <div className="h-16 bg-gray-200 rounded"></div>
+            <div className="h-16 bg-gray-200 rounded"></div>
+            <div className="h-16 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-gray-900">SEO 이슈</h2>
+        <span className="text-sm text-gray-600">총 {stats.total}개</span>
+      </div>
+
+      {/* 필터 */}
+      <div className="mb-6 flex flex-wrap gap-4">
+        <select
+          value={filters.severity}
+          onChange={(e) =>
+            setFilters({ ...filters, severity: e.target.value as any })
+          }
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+        >
+          <option value="">모든 심각도</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+
+        <select
+          value={filters.status}
+          onChange={(e) =>
+            setFilters({ ...filters, status: e.target.value as any })
+          }
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+        >
+          <option value="">모든 상태</option>
+          <option value="open">Open</option>
+          <option value="in_progress">진행 중</option>
+          <option value="resolved">해결됨</option>
+          <option value="ignored">무시됨</option>
+        </select>
+
+        <input
+          type="text"
+          placeholder="이슈 타입 검색..."
+          value={filters.issue_type}
+          onChange={(e) =>
+            setFilters({ ...filters, issue_type: e.target.value })
+          }
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+        />
+      </div>
+
+      {/* 이슈 목록 */}
+      {issues.length === 0 ? (
+        <div className="py-12 text-center">
+          <p className="text-gray-500">이슈가 없습니다.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {issues.map((issue) => (
+            <div
+              key={issue.id}
+              onClick={() => onIssueClick?.(issue)}
+              className="cursor-pointer rounded-md border border-gray-200 p-4 transition-colors hover:bg-gray-50"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span
+                      className={`rounded px-2 py-1 text-xs font-medium ${getSeverityColor(
+                        issue.severity
+                      )}`}
+                    >
+                      {issue.severity.toUpperCase()}
+                    </span>
+                    <span
+                      className={`rounded px-2 py-1 text-xs font-medium ${getStatusColor(
+                        issue.status
+                      )}`}
+                    >
+                      {issue.status === 'open' && '열림'}
+                      {issue.status === 'in_progress' && '진행 중'}
+                      {issue.status === 'resolved' && '해결됨'}
+                      {issue.status === 'ignored' && '무시됨'}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {getIssueTypeLabel(issue.issue_type)}
+                    </span>
+                  </div>
+                  <h3 className="mb-1 font-medium text-gray-900">
+                    {issue.summary}
+                  </h3>
+                  {issue.page_url && (
+                    <p className="mb-2 text-sm text-gray-600">
+                      {issue.page_url}
+                    </p>
+                  )}
+                  {issue.affected_pages_count > 1 && (
+                    <p className="text-xs text-gray-500">
+                      {issue.affected_pages_count}개 페이지에 영향
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+

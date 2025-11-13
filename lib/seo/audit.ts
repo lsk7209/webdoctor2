@@ -36,7 +36,7 @@ export async function runSiteAudit(db: D1Database, siteId: string): Promise<numb
       links_in: snapshot.links_in,
       links_out: snapshot.links_out,
       canonical: snapshot.canonical,
-      noindex: snapshot.noindex === 1,
+      noindex: Boolean(snapshot.noindex),
       structured_data_json: snapshot.structured_data_json,
       lighthouse_score_json: snapshot.lighthouse_score_json,
       http_status: snapshot.http_status,

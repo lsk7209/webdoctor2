@@ -10,6 +10,8 @@ import { getSiteById, deleteSite } from '@/lib/db/sites';
 import { getWorkspaceByOwnerId } from '@/lib/db/workspaces';
 import { getD1Database } from '@/lib/cloudflare/env';
 import { validateSiteId } from '@/utils/validation';
+import { getIssuesBySiteId } from '@/lib/db/issues';
+import { calculateHealthScore } from '@/lib/seo/health-score';
 import {
   unauthorizedResponse,
   forbiddenResponse,
@@ -63,6 +65,10 @@ export async function GET(
       return forbiddenResponse();
     }
 
+    // 이슈 조회 및 Health 점수 계산
+    const issues = await getIssuesBySiteId(db, siteId);
+    const healthScore = calculateHealthScore(issues);
+
     return successResponse({
       site: {
         id: site.id,
@@ -76,6 +82,7 @@ export async function GET(
         naver_connected: site.naver_connected,
         created_at: site.created_at,
       },
+      healthScore,
     });
   } catch (error) {
     return serverErrorResponse('사이트 정보를 불러오는 중 오류가 발생했습니다.', error);
