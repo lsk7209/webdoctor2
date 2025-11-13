@@ -8,12 +8,16 @@ import {
   checkMissingTitle,
   checkDuplicateTitle,
   checkDescriptionLength,
+  checkMissingDescription,
   checkNoH1,
   checkMultipleH1,
   checkBrokenInternalLinks,
   checkCanonicalOnParameterized,
   checkSlowPage,
+  checkLowSeoScore,
   checkNoStructuredData,
+  checkPoorHeadingStructure,
+  checkMissingOpenGraph,
 } from './base-rules';
 
 /**
@@ -23,12 +27,16 @@ const BASE_RULES: RuleFunction[] = [
   checkMissingTitle,
   checkDuplicateTitle,
   checkDescriptionLength,
+  checkMissingDescription,
   checkNoH1,
   checkMultipleH1,
   checkBrokenInternalLinks,
   checkCanonicalOnParameterized,
   checkSlowPage,
+  checkLowSeoScore,
   checkNoStructuredData,
+  checkPoorHeadingStructure,
+  checkMissingOpenGraph,
 ];
 
 /**
