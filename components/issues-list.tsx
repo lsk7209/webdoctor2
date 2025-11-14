@@ -31,6 +31,9 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState({
     severity: '' as '' | 'high' | 'medium' | 'low',
     status: '' as '' | 'open' | 'in_progress' | 'resolved' | 'ignored',
@@ -47,9 +50,13 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
   });
 
   useEffect(() => {
+    setPage(1); // 필터 변경 시 첫 페이지로 리셋
+  }, [filters]);
+
+  useEffect(() => {
     fetchIssues();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId, filters, refreshTrigger]);
+  }, [siteId, filters, refreshTrigger, page]);
 
   const fetchIssues = async () => {
     setLoading(true);
@@ -59,6 +66,8 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
       if (filters.severity) params.append('severity', filters.severity);
       if (filters.status) params.append('status', filters.status);
       if (filters.issue_type) params.append('issue_type', filters.issue_type);
+      params.append('page', page.toString());
+      params.append('limit', '50');
 
       const response = await fetch(`/api/sites/${siteId}/issues?${params.toString()}`);
       const data = await response.json();
@@ -66,6 +75,10 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
       if (response.ok && data.data) {
         setIssues(data.data.issues || []);
         setStats(data.data.stats || stats);
+        if (data.data.pagination) {
+          setTotalPages(data.data.pagination.totalPages || 1);
+          setTotal(data.data.pagination.total || 0);
+        }
       } else {
         setError(data.error || '이슈 목록을 불러오는데 실패했습니다.');
       }
@@ -74,6 +87,30 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
       console.error('이슈 목록 조회 실패:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExport = async (format: 'json' | 'csv') => {
+    try {
+      const params = new URLSearchParams();
+      if (filters.severity) params.append('severity', filters.severity);
+      if (filters.status) params.append('status', filters.status);
+      if (filters.issue_type) params.append('issue_type', filters.issue_type);
+      params.append('format', format);
+
+      const response = await fetch(`/api/sites/${siteId}/issues/export?${params.toString()}`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `issues-${siteId}-${Date.now()}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('이슈 내보내기 실패:', err);
+      alert('이슈 내보내기에 실패했습니다.');
     }
   };
 
@@ -148,8 +185,26 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-900">SEO 이슈</h2>
-        <span className="text-sm text-gray-600">총 {stats.total}개</span>
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">SEO 이슈</h2>
+          <span className="text-sm text-gray-600">
+            총 {total}개 {totalPages > 1 && `(페이지 ${page}/${totalPages})`}
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleExport('csv')}
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            CSV 내보내기
+          </button>
+          <button
+            onClick={() => handleExport('json')}
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            JSON 내보내기
+          </button>
+        </div>
       </div>
 
       {/* 필터 */}
@@ -260,6 +315,34 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
           ))}
         </div>
       ) : null}
+
+      {/* 페이지네이션 */}
+      {!loading && !error && totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-between border-t border-gray-200 pt-4">
+          <div className="text-sm text-gray-600">
+            {total}개 중 {Math.min((page - 1) * 50 + 1, total)}-{Math.min(page * 50, total)}개 표시
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              이전
+            </button>
+            <span className="px-3 py-1.5 text-sm text-gray-700">
+              {page} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              다음
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

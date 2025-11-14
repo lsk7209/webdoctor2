@@ -49,7 +49,7 @@ export async function sendWeeklyReportEmail(
     // 각 사이트의 Health 점수 및 이슈 통계 계산
     const sitesData = await Promise.all(
       readySites.map(async (site) => {
-        const issues = await getIssuesBySiteId(db, site.id);
+        const { issues } = await getIssuesBySiteId(db, site.id);
         const healthScore = calculateHealthScore(issues);
 
         return {
@@ -62,10 +62,10 @@ export async function sendWeeklyReportEmail(
     );
 
     // 전체 이슈 통계
-    const allIssues = await Promise.all(
+    const allIssuesResults = await Promise.all(
       readySites.map((site) => getIssuesBySiteId(db, site.id))
     );
-    const flatIssues = allIssues.flat();
+    const flatIssues = allIssuesResults.flatMap((result) => result.issues);
     const openIssues = flatIssues.filter(
       (i) => i.status === 'open' || i.status === 'in_progress'
     );

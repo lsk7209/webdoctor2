@@ -66,7 +66,7 @@ export async function GET(
     }
 
     // 이슈 조회 및 Health 점수 계산
-    const issues = await getIssuesBySiteId(db, siteId);
+    const { issues } = await getIssuesBySiteId(db, siteId);
     const healthScore = calculateHealthScore(issues);
 
     return successResponse({

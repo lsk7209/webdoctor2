@@ -63,30 +63,43 @@ export async function GET(
       return forbiddenResponse();
     }
 
-    // 쿼리 파라미터에서 필터 가져오기
+    // 쿼리 파라미터에서 필터 및 페이지네이션 가져오기
     const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100); // 최대 100개
+    const offset = (page - 1) * limit;
+
     const filters = {
       issue_type: searchParams.get('issue_type') || undefined,
       severity: searchParams.get('severity') || undefined,
       status: searchParams.get('status') || undefined,
+      limit,
+      offset,
     };
 
-    // 이슈 목록 조회
-    const issues = await getIssuesBySiteId(db, siteId, filters);
+    // 이슈 목록 조회 (페이지네이션 포함)
+    const { issues, total } = await getIssuesBySiteId(db, siteId, filters);
 
-    // 통계 계산
+    // 전체 통계 계산을 위해 필터 없이 조회
+    const allIssues = await getIssuesBySiteId(db, siteId, { limit: 999999 });
     const stats = {
-      total: issues.length,
-      high: issues.filter((i) => i.severity === 'high').length,
-      medium: issues.filter((i) => i.severity === 'medium').length,
-      low: issues.filter((i) => i.severity === 'low').length,
-      open: issues.filter((i) => i.status === 'open').length,
-      in_progress: issues.filter((i) => i.status === 'in_progress').length,
-      resolved: issues.filter((i) => i.status === 'resolved').length,
+      total: allIssues.total,
+      high: allIssues.issues.filter((i) => i.severity === 'high').length,
+      medium: allIssues.issues.filter((i) => i.severity === 'medium').length,
+      low: allIssues.issues.filter((i) => i.severity === 'low').length,
+      open: allIssues.issues.filter((i) => i.status === 'open').length,
+      in_progress: allIssues.issues.filter((i) => i.status === 'in_progress').length,
+      resolved: allIssues.issues.filter((i) => i.status === 'resolved').length,
     };
 
     return successResponse({
       issues,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
       stats,
     });
   } catch (error) {

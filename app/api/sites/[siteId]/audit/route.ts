@@ -128,7 +128,7 @@ export async function GET(
     };
 
     // 이슈 목록 조회
-    const issues = await getIssuesBySiteId(db, siteId, filters);
+    const { issues } = await getIssuesBySiteId(db, siteId, filters);
 
     // 통계 계산
     const stats = {

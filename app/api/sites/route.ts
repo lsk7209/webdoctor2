@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       sites.map(async (site) => {
         let healthScore: number | null = null;
         if (site.status === 'ready') {
-          const issues = await getIssuesBySiteId(db, site.id);
+          const { issues } = await getIssuesBySiteId(db, site.id);
           const health = calculateHealthScore(issues);
           healthScore = health.score;
         }

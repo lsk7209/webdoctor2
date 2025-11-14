@@ -22,7 +22,7 @@ export async function getIssueById(
 }
 
 /**
- * 사이트 ID로 이슈 목록 조회
+ * 사이트 ID로 이슈 목록 조회 (페이지네이션 지원)
  */
 export async function getIssuesBySiteId(
   db: D1Database,
@@ -31,31 +31,53 @@ export async function getIssuesBySiteId(
     issue_type?: string;
     severity?: string;
     status?: string;
+    limit?: number;
+    offset?: number;
   }
-): Promise<Issue[]> {
+): Promise<{ issues: Issue[]; total: number }> {
   let query = 'SELECT * FROM issues WHERE site_id = ?';
+  let countQuery = 'SELECT COUNT(*) as total FROM issues WHERE site_id = ?';
   const params: any[] = [siteId];
+  const countParams: any[] = [siteId];
 
   if (filters?.issue_type) {
     query += ' AND issue_type = ?';
+    countQuery += ' AND issue_type = ?';
     params.push(filters.issue_type);
+    countParams.push(filters.issue_type);
   }
 
   if (filters?.severity) {
     query += ' AND severity = ?';
+    countQuery += ' AND severity = ?';
     params.push(filters.severity);
+    countParams.push(filters.severity);
   }
 
   if (filters?.status) {
     query += ' AND status = ?';
+    countQuery += ' AND status = ?';
     params.push(filters.status);
+    countParams.push(filters.status);
   }
 
   query += ' ORDER BY severity DESC, created_at DESC';
 
-  const result = await db.prepare(query).bind(...params).all<Issue>();
+  // 페이지네이션 적용
+  const limit = filters?.limit || 50;
+  const offset = filters?.offset || 0;
+  query += ` LIMIT ? OFFSET ?`;
+  params.push(limit, offset);
 
-  return result.results || [];
+  const [issuesResult, countResult] = await Promise.all([
+    db.prepare(query).bind(...params).all<Issue>(),
+    db.prepare(countQuery).bind(...countParams).first<{ total: number }>(),
+  ]);
+
+  return {
+    issues: issuesResult.results || [],
+    total: countResult?.total || 0,
+  };
 }
 
 /**
@@ -109,7 +131,7 @@ export async function createIssuesBatch(
   const now = getUnixTimestamp();
 
   // 기존 이슈와 중복 확인을 위해 먼저 조회
-  const existingIssues = await getIssuesBySiteId(db, issues[0]?.site_id || '');
+  const { issues: existingIssues } = await getIssuesBySiteId(db, issues[0]?.site_id || '');
 
   for (const issue of issues) {
     // 중복 확인: 동일한 site_id, issue_type, page_url 조합

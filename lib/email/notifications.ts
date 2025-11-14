@@ -41,7 +41,7 @@ export async function sendFirstAuditCompleteEmail(
     }
 
     // 이슈 조회 및 Health 점수 계산
-    const issues = await getIssuesBySiteId(db, siteId);
+    const { issues } = await getIssuesBySiteId(db, siteId);
     const healthScore = calculateHealthScore(issues);
 
     // 대시보드 URL 생성 (환경에 따라 다를 수 있음)
