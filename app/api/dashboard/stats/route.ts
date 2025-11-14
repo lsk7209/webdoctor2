@@ -23,6 +23,9 @@ export const runtime = 'edge';
  * 대시보드 통계 조회
  */
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  const MAX_EXECUTION_TIME = 25 * 1000; // 25초 타임아웃
+
   try {
     const session = await getSession();
     if (!session) {
@@ -41,6 +44,16 @@ export async function GET(request: NextRequest) {
 
     // 사이트 목록 조회
     const sites = await getSitesByWorkspaceId(db, workspace.id);
+
+    // 타임아웃 체크
+    if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+      console.warn('Dashboard stats API timeout approaching');
+      return successResponse({
+        sites: { total: sites.length, ready: 0, crawling: 0, pending: 0, failed: 0 },
+        issues: { total: 0, high: 0, medium: 0, low: 0 },
+        healthScore: null,
+      });
+    }
 
     // 모든 이슈 조회
     const allIssues = await getIssuesByWorkspaceId(db, workspace.id);
@@ -79,6 +92,9 @@ export async function GET(request: NextRequest) {
           )
         : null;
 
+    const duration = Date.now() - startTime;
+    console.log(`GET /api/dashboard/stats completed in ${duration}ms`);
+
     return successResponse({
       sites: {
         total: totalSites,
@@ -96,6 +112,8 @@ export async function GET(request: NextRequest) {
       healthScore: averageHealthScore,
     });
   } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error(`GET /api/dashboard/stats failed after ${duration}ms:`, error);
     return serverErrorResponse('대시보드 통계를 불러오는 중 오류가 발생했습니다.', error);
   }
 }

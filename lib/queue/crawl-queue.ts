@@ -93,12 +93,20 @@ export async function processCrawlJob(
       }
     }
 
-    // 배치로 페이지 스냅샷 생성 (병렬 처리로 성능 향상)
+    // 배치로 페이지 스냅샷 생성 (D1 최적화: 순차 처리로 메모리 사용량 제어)
+    // Edge Runtime 메모리 제한 고려하여 배치 크기 제한
     console.log(`Creating ${pageSnapshotsToCreate.length} page snapshots...`);
-    await Promise.all(
-      pageSnapshotsToCreate.map((snapshot) => createPageSnapshot(db, snapshot))
-    );
-    console.log(`Created ${pageSnapshotsToCreate.length} page snapshots`);
+    
+    const BATCH_SIZE = 50; // Edge Runtime 메모리 제한 고려
+    for (let i = 0; i < pageSnapshotsToCreate.length; i += BATCH_SIZE) {
+      const batch = pageSnapshotsToCreate.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        batch.map((snapshot) => createPageSnapshot(db, snapshot))
+      );
+      console.log(`Created ${Math.min(i + BATCH_SIZE, pageSnapshotsToCreate.length)}/${pageSnapshotsToCreate.length} page snapshots`);
+    }
+    
+    console.log(`Successfully created ${pageSnapshotsToCreate.length} page snapshots`);
 
     // 주요 페이지 선별 (상위 100페이지)
     // D1 최적화: 필요한 페이지만 조회 (상위 200개만 조회하여 메모리 절약)

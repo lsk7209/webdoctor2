@@ -31,9 +31,26 @@ export interface CloudflareEnv {
  * 1. @cloudflare/next-on-pages 사용 시: process.env에 바인딩됨
  * 2. Cloudflare Pages Functions: request.env 또는 process.env
  * 3. Cloudflare Workers: globalThis.env
+ * 
+ * 우선순위: Request 객체 > globalThis.env > process.env
  */
 export function getCloudflareEnv(request?: Request): CloudflareEnv | null {
-  // 방법 1: Cloudflare Workers 환경 (globalThis.env)
+  // 방법 1: Request 객체를 통한 접근 (Cloudflare Pages Functions)
+  // @cloudflare/next-on-pages가 Request 객체에 env를 주입할 수 있음
+  if (request && typeof request === 'object') {
+    // Request 객체에 env 속성이 있는지 확인
+    const requestAny = request as any;
+    if (requestAny.env && requestAny.env.DB) {
+      return requestAny.env as CloudflareEnv;
+    }
+    
+    // Request.cf 또는 Request.ctx를 통한 접근 시도
+    if (requestAny.cf?.env && requestAny.cf.env.DB) {
+      return requestAny.cf.env as CloudflareEnv;
+    }
+  }
+
+  // 방법 2: Cloudflare Workers 환경 (globalThis.env)
   if (typeof globalThis !== 'undefined') {
     if ('env' in globalThis) {
       const env = (globalThis as any).env;
@@ -43,7 +60,7 @@ export function getCloudflareEnv(request?: Request): CloudflareEnv | null {
     }
   }
 
-  // 방법 2: Next.js Edge Runtime + Cloudflare Pages
+  // 방법 3: Next.js Edge Runtime + Cloudflare Pages
   // @cloudflare/next-on-pages를 사용하면 process.env에 바인딩됨
   if (typeof process !== 'undefined' && process.env) {
     // D1 바인딩 확인
@@ -60,10 +77,6 @@ export function getCloudflareEnv(request?: Request): CloudflareEnv | null {
       };
     }
   }
-
-  // 방법 3: Request 객체를 통한 접근 (Cloudflare Pages Functions)
-  // Next.js의 경우 일반적으로 process.env 사용
-  // 실제 배포 환경에서는 @cloudflare/next-on-pages가 자동 처리
 
   return null;
 }

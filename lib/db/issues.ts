@@ -168,19 +168,24 @@ export async function createIssuesBatch(
     return;
   }
 
-  // D1 배치 삽입 최적화: Prepared statement 재사용
+  // D1 배치 삽입 최적화: .batch() 메서드 사용 (Cloudflare D1 최적화)
+  // D1의 batch()는 단일 트랜잭션으로 실행되어 성능과 일관성 향상
   const insertStmt = db.prepare(
     `INSERT INTO issues 
      (id, site_id, page_url, issue_type, severity, status, summary, description, fix_hint, affected_pages_count, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
 
-  // 배치로 삽입 (D1은 배치 실행을 지원하므로 Promise.all 사용)
-  await Promise.all(
-    newIssues.map((issue) => {
-      const id = generateId();
-      return insertStmt
-        .bind(
+  // 배치 크기 제한 (D1 배치 제한: 최대 100개)
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < newIssues.length; i += BATCH_SIZE) {
+    const batch = newIssues.slice(i, i + BATCH_SIZE);
+    
+    // D1 batch() 메서드 사용 (단일 트랜잭션)
+    await db.batch(
+      batch.map((issue) => {
+        const id = generateId();
+        return insertStmt.bind(
           id,
           issue.site_id,
           issue.page_url,
@@ -193,10 +198,10 @@ export async function createIssuesBatch(
           issue.affected_pages_count,
           now,
           now
-        )
-        .run();
-    })
-  );
+        );
+      })
+    );
+  }
 }
 
 /**

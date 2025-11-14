@@ -33,6 +33,8 @@ export const runtime = 'edge';
  * 사이트 목록 조회
  */
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
     const session = await getSession();
     if (!session) {
@@ -43,6 +45,10 @@ export async function GET(request: NextRequest) {
     if (!db) {
       return databaseErrorResponse();
     }
+
+    // Edge Runtime 타임아웃: 30초 (무료 플랜) 또는 15분 (유료 플랜)
+    // 안전하게 25초로 제한
+    const MAX_EXECUTION_TIME = 25 * 1000;
 
     // 사용자 정보 조회
     const user = await getUserById(db, session.userId);
@@ -59,14 +65,48 @@ export async function GET(request: NextRequest) {
     // 사이트 목록 조회
     const sites = await getSitesByWorkspaceId(db, workspace.id);
 
-    // 각 사이트의 Health 점수 계산
+    // 타임아웃 체크
+    if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+      console.warn('API timeout approaching, returning partial results');
+      return successResponse({
+        sites: sites.map((site) => ({
+          id: site.id,
+          url: site.url,
+          display_name: site.display_name,
+          status: site.status,
+          last_crawled_at: site.last_crawled_at,
+          created_at: site.created_at,
+          health_score: null, // 타임아웃 시 health score 생략
+        })),
+      });
+    }
+
+    // 각 사이트의 Health 점수 계산 (병렬 처리)
     const sitesWithHealth = await Promise.all(
       sites.map(async (site) => {
+        // 타임아웃 체크
+        if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+          return {
+            id: site.id,
+            url: site.url,
+            display_name: site.display_name,
+            status: site.status,
+            last_crawled_at: site.last_crawled_at,
+            created_at: site.created_at,
+            health_score: null,
+          };
+        }
+
         let healthScore: number | null = null;
         if (site.status === 'ready') {
-          const { issues } = await getIssuesBySiteId(db, site.id);
-          const health = calculateHealthScore(issues);
-          healthScore = health.score;
+          try {
+            const { issues } = await getIssuesBySiteId(db, site.id);
+            const health = calculateHealthScore(issues);
+            healthScore = health.score;
+          } catch (error) {
+            console.error(`Failed to calculate health score for site ${site.id}:`, error);
+            // Health score 계산 실패는 전체 요청 실패로 간주하지 않음
+          }
         }
 
         return {
@@ -81,10 +121,15 @@ export async function GET(request: NextRequest) {
       })
     );
 
+    const duration = Date.now() - startTime;
+    console.log(`GET /api/sites completed in ${duration}ms`);
+
     return successResponse({
       sites: sitesWithHealth,
     });
   } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error(`GET /api/sites failed after ${duration}ms:`, error);
     return serverErrorResponse('사이트 목록을 불러오는 중 오류가 발생했습니다.', error);
   }
 }
