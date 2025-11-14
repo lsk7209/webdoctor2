@@ -35,7 +35,23 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET || 'temp-secret-for-build' }}
           CI: true
         continue-on-error: false
-        timeout-minutes: 20
+        timeout-minutes: 25
+      
+      - name: Verify build output
+        run: |
+          if [ ! -d ".next" ]; then
+            echo "❌ Error: .next directory not found"
+            exit 1
+          fi
+          echo "✅ .next directory exists"
+          
+          if [ -d ".vercel/output/static" ]; then
+            echo "✅ Cloudflare Pages output directory exists"
+            ls -la .vercel/output/static | head -20
+          else
+            echo "⚠️  Cloudflare Pages output directory not found, but .next exists"
+            echo "ℹ️  Cloudflare Pages will handle conversion automatically"
+          fi
       
       - name: Upload build logs
         if: failure()

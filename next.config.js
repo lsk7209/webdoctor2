@@ -25,6 +25,10 @@ const nextConfig = {
   // Cloudflare Pages는 Edge Runtime에서 동적 렌더링을 지원
   generateBuildId: async () => {
     // 항상 새로운 빌드 ID 생성하여 정적 생성 방지
+    // CI 환경에서는 타임스탬프 기반 ID 사용
+    if (process.env.CI) {
+      return `build-${Date.now()}`;
+    }
     return 'build-' + Date.now() + '-' + Math.random().toString(36).substring(7);
   },
   

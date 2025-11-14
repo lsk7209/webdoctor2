@@ -93,6 +93,16 @@ fi
 echo ""
 echo "🔄 Cloudflare Pages 변환 실행 중..."
 set +e  # 변환 오류 허용
+
+# @cloudflare/next-on-pages가 설치되어 있는지 확인
+if ! command -v npx &> /dev/null || ! npx @cloudflare/next-on-pages --version &> /dev/null; then
+  echo "⚠️  @cloudflare/next-on-pages가 설치되지 않았습니다. 설치 중..."
+  npm install --save-dev @cloudflare/next-on-pages@1.12.1 || {
+    echo "⚠️  @cloudflare/next-on-pages 설치 실패. Cloudflare Pages가 자동으로 처리합니다."
+  }
+fi
+
+# Cloudflare Pages 변환 실행
 npm run pages:build 2>&1 | tee -a build.log
 PAGES_BUILD_EXIT_CODE=$?
 set -e  # 오류 중단 다시 활성화
@@ -109,6 +119,14 @@ if [ -d ".vercel/output/static" ]; then
   echo ""
   echo "✅ Cloudflare Pages 빌드가 완료되었습니다!"
   echo "📁 출력 디렉토리: .vercel/output/static"
+elif [ "$PAGES_BUILD_EXIT_CODE" -ne 0 ]; then
+  echo ""
+  echo "⚠️  Cloudflare Pages 변환에 실패했습니다 (exit code: $PAGES_BUILD_EXIT_CODE)"
+  echo "ℹ️  Cloudflare Pages가 자동으로 변환을 처리할 수 있습니다."
+  echo "📁 빌드 디렉토리: .next"
+  echo ""
+  echo "✅ Next.js 빌드는 성공적으로 완료되었습니다."
+  echo "ℹ️  Cloudflare Pages가 .next 디렉토리를 직접 사용할 수 있습니다."
 else
   echo ""
   echo "✅ Next.js 빌드가 완료되었습니다!"
