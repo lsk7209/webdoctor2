@@ -2,9 +2,10 @@
  * 사이트 목록 페이지
  */
 
-// Cloudflare Pages: 동적 렌더링 강제
+// Cloudflare Pages: 동적 렌더링 강제 및 Edge Runtime
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const runtime = 'edge';
 
 import dynamicImport from 'next/dynamic';
 

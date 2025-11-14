@@ -103,16 +103,16 @@ if ! command -v npx &> /dev/null || ! npx @cloudflare/next-on-pages --version &>
 fi
 
 # Cloudflare Pages 변환 실행
-npm run pages:build 2>&1 | tee -a build.log
-PAGES_BUILD_EXIT_CODE=$?
+# @cloudflare/next-on-pages가 내부적으로 vercel build를 실행하는데,
+# 이것이 다시 npm run build를 호출하지 않도록 환경 변수 설정
+export SKIP_ENV_VALIDATION=true
+export NEXT_TELEMETRY_DISABLED=1
 
-# pages:build 실패 시 재시도 (옵션 없이)
-if [ "$PAGES_BUILD_EXIT_CODE" -ne 0 ]; then
-  echo ""
-  echo "⚠️  첫 번째 변환 시도 실패. 옵션 없이 재시도 중..."
-  npx @cloudflare/next-on-pages 2>&1 | tee -a build.log
-  PAGES_BUILD_EXIT_CODE=$?
-fi
+# pages:build 실행 (재귀 호출 방지를 위해 직접 npx 실행)
+echo ""
+echo "🔄 @cloudflare/next-on-pages 실행 중..."
+npx @cloudflare/next-on-pages 2>&1 | tee -a build.log
+PAGES_BUILD_EXIT_CODE=$?
 
 set -e  # 오류 중단 다시 활성화
 
