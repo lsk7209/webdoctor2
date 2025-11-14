@@ -21,7 +21,9 @@ function getJwtSecret(): string {
       throw new Error('JWT_SECRET 환경 변수가 설정되지 않았습니다. 프로덕션 환경에서는 필수입니다.');
     }
     // 개발 환경에서는 경고만 출력
-    console.warn('⚠️  JWT_SECRET이 설정되지 않았습니다. 기본값을 사용합니다. 프로덕션에서는 반드시 설정하세요.');
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('⚠️  JWT_SECRET이 설정되지 않았습니다. 기본값을 사용합니다. 프로덕션에서는 반드시 설정하세요.');
+    }
     return 'dev-secret-key-change-in-production';
   }
   
@@ -140,7 +142,10 @@ export async function verifyPassword(
     
     return isEqual;
   } catch (error) {
-    console.error('Password verification error:', error);
+    // 비밀번호 검증 에러는 민감한 정보이므로 로깅 최소화
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Password verification error:', error);
+    }
     return false;
   }
 }
@@ -154,7 +159,7 @@ export async function generateToken(payload: JWTPayload): Promise<string> {
   const jwt = await new SignJWT({
     userId: payload.userId,
     email: payload.email,
-  } as Record<string, any>)
+  } as Record<string, string>)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(JWT_EXPIRES_IN)

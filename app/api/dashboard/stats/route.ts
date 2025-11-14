@@ -8,6 +8,7 @@ import { getSession } from '@/lib/auth/session';
 import { getWorkspaceByOwnerId } from '@/lib/db/workspaces';
 import { getSitesByWorkspaceId } from '@/lib/db/sites';
 import { getIssuesStatsByWorkspaceId, getIssuesBySiteIds } from '@/lib/db/issues';
+import { getSitesStatusStatsByWorkspaceId } from '@/lib/db/issues';
 import { getD1Database } from '@/lib/cloudflare/env';
 import { calculateHealthScore } from '@/lib/seo/health-score';
 import {
@@ -16,6 +17,7 @@ import {
   serverErrorResponse,
   successResponse,
 } from '@/utils/api-response';
+import { logApiRequest, warn, error as logError } from '@/utils/logger';
 
 export const runtime = 'edge';
 
@@ -42,25 +44,22 @@ export async function GET(request: NextRequest) {
       return unauthorizedResponse();
     }
 
-    // 사이트 목록 조회
-    const sites = await getSitesByWorkspaceId(db, workspace.id);
+    // 사이트 상태 통계 조회 (최적화: 데이터베이스 집계 쿼리 사용)
+    const sitesStats = await getSitesStatusStatsByWorkspaceId(db, workspace.id);
 
     // 타임아웃 체크
     if (Date.now() - startTime > MAX_EXECUTION_TIME) {
-      console.warn('Dashboard stats API timeout approaching');
+      warn('Dashboard stats API timeout approaching', { duration: Date.now() - startTime });
       return successResponse({
-        sites: { total: sites.length, ready: 0, crawling: 0, pending: 0, failed: 0 },
+        sites: sitesStats,
         issues: { total: 0, high: 0, medium: 0, low: 0 },
         healthScore: null,
       });
     }
 
-    // 전체 통계 계산 (최적화: 데이터베이스 집계 쿼리 사용)
-    const totalSites = sites.length;
-    const readySites = sites.filter((s) => s.status === 'ready').length;
-    const crawlingSites = sites.filter((s) => s.status === 'crawling').length;
-    const pendingSites = sites.filter((s) => s.status === 'pending').length;
-    const failedSites = sites.filter((s) => s.status === 'failed').length;
+    // Health 점수 계산을 위해 ready 상태인 사이트 목록만 조회
+    const sites = await getSitesByWorkspaceId(db, workspace.id);
+    const readySites = sites.filter((s) => s.status === 'ready');
 
     // 이슈 통계 (최적화: 데이터베이스 집계 쿼리 사용)
     const allIssuesStats = await getIssuesStatsByWorkspaceId(db, workspace.id);
@@ -71,7 +70,7 @@ export async function GET(request: NextRequest) {
     const lowIssues = allIssuesStats.low;
 
     // 사이트별 Health 점수 계산 (최적화: ready 상태인 사이트의 이슈만 조회)
-    const readySiteIds = sites.filter((s) => s.status === 'ready').map((s) => s.id);
+    const readySiteIds = readySites.map((s) => s.id);
     const issuesBySiteId = await getIssuesBySiteIds(db, readySiteIds);
     
     const siteHealthScores: Array<{ siteId: string; score: number }> = [];
@@ -90,16 +89,13 @@ export async function GET(request: NextRequest) {
         : null;
 
     const duration = Date.now() - startTime;
-    console.log(`GET /api/dashboard/stats completed in ${duration}ms`);
+    logApiRequest('GET', '/api/dashboard/stats', 200, duration, {
+      sitesCount: sitesStats.total,
+      issuesCount: totalIssues,
+    });
 
     return successResponse({
-      sites: {
-        total: totalSites,
-        ready: readySites,
-        crawling: crawlingSites,
-        pending: pendingSites,
-        failed: failedSites,
-      },
+      sites: sitesStats,
       issues: {
         total: totalIssues,
         high: highIssues,
@@ -110,7 +106,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     const duration = Date.now() - startTime;
-    console.error(`GET /api/dashboard/stats failed after ${duration}ms:`, error);
+    logError('Dashboard stats API failed', error, { duration });
     return serverErrorResponse('대시보드 통계를 불러오는 중 오류가 발생했습니다.', error);
   }
 }

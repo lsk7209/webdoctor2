@@ -10,13 +10,19 @@ import type { D1Database } from '@/db/client';
 
 // Cloudflare Queue 타입 정의
 export interface Queue {
-  send(message: any): Promise<void>;
+  send(message: unknown): Promise<void>;
+}
+
+// MailChannels 바인딩 타입 (최소한의 타입 정의)
+export interface MailChannelsBinding {
+  send?(message: unknown): Promise<unknown>;
+  [key: string]: unknown;
 }
 
 export interface CloudflareEnv {
   DB: D1Database;
   QUEUE?: Queue; // 크롤 작업 큐
-  MAILCHANNELS?: any; // MailChannels 바인딩
+  MAILCHANNELS?: MailChannelsBinding; // MailChannels 바인딩
   RESEND_API_KEY?: string; // Resend API 키 (환경 변수)
   PAGESPEED_API_KEY?: string; // Pagespeed Insights API 키 (환경 변수)
   JWT_SECRET?: string;
@@ -39,7 +45,8 @@ export function getCloudflareEnv(request?: Request): CloudflareEnv | null {
   // @cloudflare/next-on-pages가 Request 객체에 env를 주입할 수 있음
   if (request && typeof request === 'object') {
     // Request 객체에 env 속성이 있는지 확인
-    const requestAny = request as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const requestAny = request as Record<string, any>;
     if (requestAny.env && requestAny.env.DB) {
       return requestAny.env as CloudflareEnv;
     }
@@ -53,7 +60,8 @@ export function getCloudflareEnv(request?: Request): CloudflareEnv | null {
   // 방법 2: Cloudflare Workers 환경 (globalThis.env)
   if (typeof globalThis !== 'undefined') {
     if ('env' in globalThis) {
-      const env = (globalThis as any).env;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const env = (globalThis as Record<string, any>).env;
       if (env && env.DB) {
         return env as CloudflareEnv;
       }
@@ -68,7 +76,7 @@ export function getCloudflareEnv(request?: Request): CloudflareEnv | null {
       return {
         DB: process.env.DB as unknown as D1Database,
         QUEUE: process.env.QUEUE as unknown as Queue | undefined,
-        MAILCHANNELS: process.env.MAILCHANNELS,
+        MAILCHANNELS: process.env.MAILCHANNELS as unknown as MailChannelsBinding | undefined,
         RESEND_API_KEY: process.env.RESEND_API_KEY,
         PAGESPEED_API_KEY: process.env.PAGESPEED_API_KEY,
         JWT_SECRET: process.env.JWT_SECRET,
@@ -125,7 +133,8 @@ export function getQueue(request?: Request): Queue | null {
 export function getEnvVar(key: string, request?: Request): string | undefined {
   const env = getCloudflareEnv(request);
   if (env && key in env) {
-    return (env as any)[key];
+    const value = env[key as keyof CloudflareEnv];
+    return typeof value === 'string' ? value : undefined;
   }
   
   // Fallback to process.env (개발 환경 및 Cloudflare Pages)
@@ -139,7 +148,7 @@ export function getEnvVar(key: string, request?: Request): string | undefined {
 /**
  * MailChannels 바인딩 가져오기
  */
-export function getMailChannels(request?: Request): any {
+export function getMailChannels(request?: Request): MailChannelsBinding | null {
   const env = getCloudflareEnv(request);
   if (env?.MAILCHANNELS) {
     return env.MAILCHANNELS;
@@ -147,7 +156,8 @@ export function getMailChannels(request?: Request): any {
   
   // Fallback: 직접 process.env 확인
   if (typeof process !== 'undefined' && process.env && process.env.MAILCHANNELS) {
-    return process.env.MAILCHANNELS;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return process.env.MAILCHANNELS as unknown as MailChannelsBinding;
   }
   
   return null;

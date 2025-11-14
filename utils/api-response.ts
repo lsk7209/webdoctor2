@@ -7,10 +7,10 @@ import { NextResponse } from 'next/server';
 export interface ApiError {
   error: string;
   code?: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
-export interface ApiSuccess<T = any> {
+export interface ApiSuccess<T = unknown> {
   message?: string;
   data?: T;
 }
@@ -39,7 +39,7 @@ export function errorResponse(
   error: string,
   status: number = 400,
   code?: string,
-  details?: Record<string, any>
+  details?: Record<string, unknown>
 ): NextResponse<ApiError> {
   return NextResponse.json(
     {
@@ -79,7 +79,21 @@ export function serverErrorResponse(
   message: string = '서버 오류가 발생했습니다.',
   error?: unknown
 ): NextResponse<ApiError> {
-  console.error('Server error:', error);
+  // 구조화된 로깅 사용 (프로덕션 환경 고려)
+  if (process.env.NODE_ENV === 'development') {
+    console.error('Server error:', error);
+  } else {
+    // 프로덕션에서는 구조화된 로그 (에러 추적 시스템 연동 가능)
+    const errorInfo = error instanceof Error
+      ? { name: error.name, message: error.message }
+      : { error: String(error) };
+    console.error(JSON.stringify({
+      level: 'error',
+      message: 'Server error',
+      ...errorInfo,
+      timestamp: new Date().toISOString(),
+    }));
+  }
   return errorResponse(message, 500, 'INTERNAL_SERVER_ERROR');
 }
 

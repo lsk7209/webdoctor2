@@ -400,3 +400,49 @@ export async function deleteIssuesBySiteId(db: D1Database, siteId: string): Prom
     .bind(siteId)
     .run();
 }
+
+/**
+ * 워크스페이스의 사이트 상태별 통계 조회 (최적화: 데이터베이스 집계 쿼리 사용)
+ * 이 함수는 sites 테이블을 조회하지만 issues.ts에 위치한 이유는
+ * dashboard stats API에서 함께 사용되기 때문입니다.
+ */
+export async function getSitesStatusStatsByWorkspaceId(
+  db: D1Database,
+  workspaceId: string
+): Promise<{
+  total: number;
+  ready: number;
+  crawling: number;
+  pending: number;
+  failed: number;
+}> {
+  const statsQuery = `
+    SELECT
+      COUNT(*) as total,
+      SUM(CASE WHEN status = 'ready' THEN 1 ELSE 0 END) as ready,
+      SUM(CASE WHEN status = 'crawling' THEN 1 ELSE 0 END) as crawling,
+      SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+      SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
+    FROM sites
+    WHERE workspace_id = ?
+  `;
+
+  const result = await db
+    .prepare(statsQuery)
+    .bind(workspaceId)
+    .first<{
+      total: number;
+      ready: number;
+      crawling: number;
+      pending: number;
+      failed: number;
+    }>();
+
+  return {
+    total: result?.total || 0,
+    ready: result?.ready || 0,
+    crawling: result?.crawling || 0,
+    pending: result?.pending || 0,
+    failed: result?.failed || 0,
+  };
+}

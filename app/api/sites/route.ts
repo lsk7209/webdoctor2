@@ -25,6 +25,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/utils/api-response';
+import { logApiRequest, warn, error as logError } from '@/utils/logger';
 
 // Edge Runtime 사용 (Cloudflare 호환)
 export const runtime = 'edge';
@@ -67,7 +68,10 @@ export async function GET(request: NextRequest) {
 
     // 타임아웃 체크
     if (Date.now() - startTime > MAX_EXECUTION_TIME) {
-      console.warn('API timeout approaching, returning partial results');
+      warn('Sites API timeout approaching, returning partial results', {
+        duration: Date.now() - startTime,
+        sitesCount: sites.length,
+      });
       return successResponse({
         sites: sites.map((site) => ({
           id: site.id,
@@ -100,11 +104,12 @@ export async function GET(request: NextRequest) {
         let healthScore: number | null = null;
         if (site.status === 'ready') {
           try {
-            const { issues } = await getIssuesBySiteId(db, site.id);
+            // Health 점수 계산을 위해 이슈 조회 (제한된 수만 조회하여 성능 최적화)
+            const { issues } = await getIssuesBySiteId(db, site.id, { limit: 1000, offset: 0 });
             const health = calculateHealthScore(issues);
             healthScore = health.score;
           } catch (error) {
-            console.error(`Failed to calculate health score for site ${site.id}:`, error);
+            logError('Failed to calculate health score', error, { siteId: site.id });
             // Health score 계산 실패는 전체 요청 실패로 간주하지 않음
           }
         }
@@ -122,14 +127,16 @@ export async function GET(request: NextRequest) {
     );
 
     const duration = Date.now() - startTime;
-    console.log(`GET /api/sites completed in ${duration}ms`);
+    logApiRequest('GET', '/api/sites', 200, duration, {
+      sitesCount: sites.length,
+    });
 
     return successResponse({
       sites: sitesWithHealth,
     });
   } catch (error) {
     const duration = Date.now() - startTime;
-    console.error(`GET /api/sites failed after ${duration}ms:`, error);
+    logError('Sites API failed', error, { duration });
     return serverErrorResponse('사이트 목록을 불러오는 중 오류가 발생했습니다.', error);
   }
 }
@@ -222,12 +229,12 @@ export async function POST(request: NextRequest) {
         );
       } catch (queueError) {
         // Queue가 없으면 직접 처리 (개발 환경)
-        console.warn('Queue를 사용할 수 없습니다:', queueError);
+        warn('Queue를 사용할 수 없습니다', { error: queueError });
         // 개발 환경에서는 직접 처리하거나 경고만 표시
       }
     } catch (crawlError) {
       // 크롤 작업 생성 실패는 사이트 등록을 막지 않음
-      console.error('크롤 작업 생성 실패:', crawlError);
+      logError('크롤 작업 생성 실패', crawlError, { siteId: site.id });
     }
 
     return successResponse(

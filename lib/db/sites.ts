@@ -67,11 +67,9 @@ export async function createSite(
   const id = generateId();
   const now = getUnixTimestamp();
 
-  // URL 정규화 (프로토콜 추가)
-  let normalizedUrl = data.url.trim();
-  if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-    normalizedUrl = `https://${normalizedUrl}`;
-  }
+  // URL 정규화는 호출 전에 이미 수행되어야 함 (normalizeUrl 사용)
+  // 여기서는 추가 검증만 수행
+  const normalizedUrl = data.url.trim();
 
   await db
     .prepare(

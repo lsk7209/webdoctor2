@@ -19,6 +19,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/utils/api-response';
+import { logApiRequest, warn, error as logError } from '@/utils/logger';
 
 // Edge Runtime 사용 (Cloudflare 호환)
 export const runtime = 'edge';
@@ -82,7 +83,10 @@ export async function GET(
 
     // 타임아웃 체크
     if (Date.now() - startTime > MAX_EXECUTION_TIME) {
-      console.warn('Issues API timeout approaching, returning partial results');
+      warn('Issues API timeout approaching, returning partial results', {
+        siteId,
+        duration: Date.now() - startTime,
+      });
       return successResponse({
         issues,
         pagination: {
@@ -110,7 +114,12 @@ export async function GET(
     });
 
     const duration = Date.now() - startTime;
-    console.log(`GET /api/sites/${siteId}/issues completed in ${duration}ms`);
+    logApiRequest('GET', `/api/sites/${siteId}/issues`, 200, duration, {
+      siteId,
+      issuesCount: issues.length,
+      total,
+      page,
+    });
 
     return successResponse({
       issues,
@@ -124,7 +133,10 @@ export async function GET(
     });
   } catch (error) {
     const duration = Date.now() - startTime;
-    console.error(`GET /api/sites/${params.siteId}/issues failed after ${duration}ms:`, error);
+    logError('Issues API failed', error, {
+      siteId: params.siteId,
+      duration,
+    });
     return serverErrorResponse('이슈 목록을 불러오는 중 오류가 발생했습니다.', error);
   }
 }

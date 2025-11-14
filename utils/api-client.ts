@@ -25,7 +25,7 @@ export interface FetchResult<T = any> {
  * - 재시도 로직
  * - 표준화된 응답 형식 검증
  */
-export async function apiFetch<T = any>(
+export async function apiFetch<T = unknown>(
   url: string,
   options: FetchOptions = {}
 ): Promise<FetchResult<T>> {
@@ -186,7 +186,7 @@ export async function apiFetch<T = any>(
 /**
  * GET 요청 헬퍼
  */
-export async function apiGet<T = any>(
+export async function apiGet<T = unknown>(
   url: string,
   options?: Omit<FetchOptions, 'method' | 'body'>
 ): Promise<FetchResult<T>> {
@@ -196,9 +196,9 @@ export async function apiGet<T = any>(
 /**
  * POST 요청 헬퍼
  */
-export async function apiPost<T = any>(
+export async function apiPost<T = unknown>(
   url: string,
-  body?: any,
+  body?: unknown,
   options?: Omit<FetchOptions, 'method'>
 ): Promise<FetchResult<T>> {
   return apiFetch<T>(url, {
@@ -211,9 +211,9 @@ export async function apiPost<T = any>(
 /**
  * PATCH 요청 헬퍼
  */
-export async function apiPatch<T = any>(
+export async function apiPatch<T = unknown>(
   url: string,
-  body?: any,
+  body?: unknown,
   options?: Omit<FetchOptions, 'method'>
 ): Promise<FetchResult<T>> {
   return apiFetch<T>(url, {
@@ -226,7 +226,7 @@ export async function apiPatch<T = any>(
 /**
  * DELETE 요청 헬퍼
  */
-export async function apiDelete<T = any>(
+export async function apiDelete<T = unknown>(
   url: string,
   options?: Omit<FetchOptions, 'method' | 'body'>
 ): Promise<FetchResult<T>> {

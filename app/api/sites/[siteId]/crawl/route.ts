@@ -21,6 +21,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/utils/api-response';
+import { warn } from '@/utils/logger';
 
 // Edge Runtime 사용 (Cloudflare 호환)
 export const runtime = 'edge';
@@ -83,7 +84,7 @@ export async function POST(
       );
     } catch (queueError) {
       // Queue가 없으면 직접 처리 (개발 환경)
-      console.warn('Queue를 사용할 수 없습니다:', queueError);
+      warn('Queue를 사용할 수 없습니다', { error: queueError, siteId });
     }
 
     return successResponse(
