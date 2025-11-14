@@ -105,6 +105,15 @@ fi
 # Cloudflare Pages 변환 실행
 npm run pages:build 2>&1 | tee -a build.log
 PAGES_BUILD_EXIT_CODE=$?
+
+# pages:build 실패 시 재시도 (옵션 없이)
+if [ "$PAGES_BUILD_EXIT_CODE" -ne 0 ]; then
+  echo ""
+  echo "⚠️  첫 번째 변환 시도 실패. 옵션 없이 재시도 중..."
+  npx @cloudflare/next-on-pages 2>&1 | tee -a build.log
+  PAGES_BUILD_EXIT_CODE=$?
+fi
+
 set -e  # 오류 중단 다시 활성화
 
 # 4. 빌드 출력 확인

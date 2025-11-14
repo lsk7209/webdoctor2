@@ -4,6 +4,7 @@ compatibility_date = "2024-01-01"
 # Cloudflare Pages 설정 (BETA)
 # Pages에서 wrangler.toml을 사용할 때 필요
 # main 필드는 Workers용이므로 Pages에서는 제거해야 함
+# .vercel/output/static이 없으면 .next 디렉토리 사용
 pages_build_output_dir = ".vercel/output/static"
 
 # D1 데이터베이스 설정
