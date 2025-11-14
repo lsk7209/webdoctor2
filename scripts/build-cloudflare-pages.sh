@@ -121,9 +121,8 @@ export CI=true  # CI 환경으로 인식하여 재귀 호출 방지
 
 # 빌드 타임 환경 변수 설정 (JWT_SECRET 검증 에러 방지)
 # Cloudflare Pages 빌드 환경에서는 환경 변수가 없을 수 있으므로 기본값 설정
-if [ -z "$JWT_SECRET" ]; then
-  export JWT_SECRET="dev-secret-key-change-in-production-build-time-32chars"
-fi
+# 빌드 타임에는 항상 기본값 사용하여 검증 에러 방지
+export JWT_SECRET="${JWT_SECRET:-dev-secret-key-change-in-production-build-time-32chars}"
 
 # Next.js 빌드 타임 감지 환경 변수 설정
 export NEXT_PHASE=phase-production-build

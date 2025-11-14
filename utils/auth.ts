@@ -26,8 +26,9 @@ function getJwtSecret(): string {
   
   if (!secret || secret === 'your-secret-key-change-in-production') {
     // 빌드 타임에는 기본값 사용 (에러 방지)
+    // 최소 32자 길이를 만족하는 빌드 타임 기본값
     if (isBuildTime) {
-      return 'dev-secret-key-change-in-production-build-time';
+      return 'dev-secret-key-change-in-production-build-time-32chars';
     }
     
     // 런타임 프로덕션 환경에서만 에러 발생
