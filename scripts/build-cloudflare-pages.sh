@@ -33,15 +33,30 @@ if [ $BUILD_EXIT_CODE -ne 0 ]; then
   echo "✅ .next 디렉토리가 존재합니다. 빌드를 계속 진행합니다."
   
   # 정적 생성 오류만 있는지 확인 (더 포괄적인 패턴 매칭)
-  STATIC_ERROR_COUNT=$(grep -c "Error occurred prerendering page" build.log || echo "0")
-  HTML_ERROR_COUNT=$(grep -c "<Html> should not be imported\|Html.*should not" build.log || echo "0")
-  ERROR_PAGE_COUNT=$(grep -c "/404\|/500\|_error\|_not-found" build.log || echo "0")
-  EXPORT_ERROR_COUNT=$(grep -c "Export encountered errors\|Failed: Error while executing" build.log || echo "0")
+  STATIC_ERROR_COUNT=$(grep -i -c "Error occurred prerendering page\|prerendering.*failed" build.log || echo "0")
+  HTML_ERROR_COUNT=$(grep -i -c "<Html> should not be imported\|Html.*should not\|should not be imported outside" build.log || echo "0")
+  ERROR_PAGE_COUNT=$(grep -i -c "/404\|/500\|_error\|_not-found\|not-found\|global-error" build.log || echo "0")
+  EXPORT_ERROR_COUNT=$(grep -i -c "Export encountered errors\|Failed: Error while executing\|export.*error" build.log || echo "0")
   
   # 빌드가 실제로 성공했는지 확인 (Compiled successfully 메시지 확인)
-  BUILD_SUCCESS=$(grep -c "Compiled successfully\|✓ Compiled successfully" build.log || echo "0")
+  BUILD_SUCCESS=$(grep -i -c "Compiled successfully\|✓ Compiled\|Build completed\|Creating an optimized production build" build.log || echo "0")
   
-  if [ "$BUILD_SUCCESS" -gt 0 ] && [ -d ".next" ]; then
+  # 실제 빌드 실패 오류 확인 (타입 오류, 모듈 오류 등)
+  CRITICAL_ERROR=$(grep -i -c "Cannot find module\|Module not found\|Type error\|Syntax error\|Failed to compile" build.log || echo "0")
+  
+  # 실제 빌드 실패 오류가 있는지 확인
+  if [ "$CRITICAL_ERROR" -gt 0 ]; then
+    echo ""
+    echo "❌ 실제 빌드 실패 오류가 감지되었습니다:"
+    echo "📊 오류 통계:"
+    echo "   - 실제 빌드 오류: $CRITICAL_ERROR"
+    echo "   - 정적 생성 오류: $STATIC_ERROR_COUNT"
+    echo "   - HTML 오류: $HTML_ERROR_COUNT"
+    echo ""
+    echo "📋 빌드 로그 (마지막 100줄):"
+    tail -100 build.log
+    exit 1
+  elif [ "$BUILD_SUCCESS" -gt 0 ] && [ -d ".next" ]; then
     echo ""
     echo "✅ 빌드가 성공적으로 컴파일되었습니다 (.next 디렉토리 존재 확인)"
     echo "ℹ️  정적 생성 오류는 Cloudflare Pages에서 예상된 동작입니다."

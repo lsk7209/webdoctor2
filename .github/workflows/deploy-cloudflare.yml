@@ -33,8 +33,9 @@ jobs:
         env:
           NODE_ENV: production
           JWT_SECRET: ${{ secrets.JWT_SECRET || 'temp-secret-for-build' }}
+          CI: true
         continue-on-error: false
-        timeout-minutes: 15
+        timeout-minutes: 20
       
       - name: Upload build logs
         if: failure()

@@ -9,9 +9,8 @@
 
 'use client';
 
-// 정적 생성 완전 비활성화
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// 클라이언트 컴포넌트는 export const dynamic을 사용할 수 없음
+// Next.js가 자동으로 동적 렌더링 처리
 
 export default function GlobalError({
   error,
