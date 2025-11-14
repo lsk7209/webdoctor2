@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "bash scripts/build-cloudflare-pages.sh",
-    "build:next": "next build",
+    "build:next": "SKIP_ENV_VALIDATION=true NEXT_PHASE=phase-production-build next build",
     "build:cloudflare": "next build && npx @cloudflare/next-on-pages",
     "build:pages": "bash scripts/build-cloudflare-pages.sh",
     "build:cloudflare:safe": "node scripts/build-cloudflare.js || (npm run build && npm run pages:build)",

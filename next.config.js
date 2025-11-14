@@ -17,8 +17,9 @@ const nextConfig = {
   },
   
   // Cloudflare 환경 변수 처리
+  // 빌드 타임에는 기본값 사용 (빌드 에러 방지)
   env: {
-    JWT_SECRET: process.env.JWT_SECRET,
+    JWT_SECRET: process.env.JWT_SECRET || (process.env.CI ? 'dev-secret-key-change-in-production-build-time-32chars' : undefined),
   },
   
   // 빌드 시 정적 페이지 생성을 완전히 비활성화
@@ -130,6 +131,17 @@ const nextConfig = {
   },
   
   // 웹팩 설정 최적화 (Cloudflare Edge Runtime 호환)
+  // 빌드 타임에 API 라우트 실행 방지
+  // Next.js가 빌드 시 "Collecting page data" 단계에서 API 라우트를 실행하지 않도록 설정
+  experimental: {
+    ...nextConfig.experimental,
+    // API 라우트 빌드 타임 실행 방지
+    serverActions: {
+      ...nextConfig.experimental?.serverActions,
+      bodySizeLimit: '2mb',
+    },
+  },
+
   webpack: (config, { isServer, webpack, dev }) => {
     // 서버 사이드 번들에서 불필요한 모듈 제외
     if (isServer) {

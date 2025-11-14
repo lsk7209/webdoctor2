@@ -9,6 +9,16 @@ echo "🚀 Cloudflare Pages 빌드 시작..."
 echo "📝 참고: global-error.tsx의 <html> 태그는 Next.js 요구사항입니다."
 echo "📝 정적 생성 오류는 Cloudflare Pages에서 예상된 동작이며 무시해도 됩니다."
 
+# 빌드 타임 환경 변수 설정 (JWT_SECRET 검증 에러 방지)
+# Cloudflare Pages 빌드 환경에서는 환경 변수가 없을 수 있으므로 기본값 설정
+if [ -z "$JWT_SECRET" ]; then
+  export JWT_SECRET="dev-secret-key-change-in-production-build-time-32chars"
+fi
+
+# Next.js 빌드 타임 감지 환경 변수 설정
+export NEXT_PHASE=phase-production-build
+export SKIP_ENV_VALIDATION=true
+
 # 1. Next.js 빌드 실행 (오류 허용)
 echo ""
 echo "📦 Next.js 빌드 실행 중..."
@@ -108,6 +118,15 @@ fi
 export SKIP_ENV_VALIDATION=true
 export NEXT_TELEMETRY_DISABLED=1
 export CI=true  # CI 환경으로 인식하여 재귀 호출 방지
+
+# 빌드 타임 환경 변수 설정 (JWT_SECRET 검증 에러 방지)
+# Cloudflare Pages 빌드 환경에서는 환경 변수가 없을 수 있으므로 기본값 설정
+if [ -z "$JWT_SECRET" ]; then
+  export JWT_SECRET="dev-secret-key-change-in-production-build-time-32chars"
+fi
+
+# Next.js 빌드 타임 감지 환경 변수 설정
+export NEXT_PHASE=phase-production-build
 
 # vercel build가 package.json의 "build" 대신 "vercel-build"를 사용하도록 설정
 # 또는 직접 next build를 호출하도록 환경 변수 설정

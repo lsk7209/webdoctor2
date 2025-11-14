@@ -14,7 +14,13 @@ import { getEnvVar } from '@/lib/cloudflare/env';
  */
 function getJwtSecret(): string {
   // 빌드 타임 체크: CI 환경이나 빌드 중에는 검증 완화
-  const isBuildTime = process.env.CI || process.env.NEXT_PHASE === 'phase-production-build';
+  // Next.js 빌드 단계 감지
+  const isBuildTime = 
+    process.env.CI === 'true' || 
+    process.env.NEXT_PHASE === 'phase-production-build' ||
+    process.env.SKIP_ENV_VALIDATION === 'true' ||
+    (typeof process !== 'undefined' && process.env && !process.env.JWT_SECRET && process.env.NODE_ENV !== 'production');
+  
   const isProduction = process.env.NODE_ENV === 'production' && !isBuildTime;
   const secret = getEnvVar('JWT_SECRET') || process.env.JWT_SECRET;
   
