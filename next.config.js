@@ -85,6 +85,7 @@ const nextConfig = {
         'utf-8-validate': 'commonjs utf-8-validate',
         'bufferutil': 'commonjs bufferutil',
         'bcryptjs': 'commonjs bcryptjs', // Edge Runtime에서 사용하지 않음
+        'async_hooks': 'commonjs async_hooks', // Node.js 내장 모듈
       });
     }
     
@@ -103,6 +104,7 @@ const nextConfig = {
       assert: false,
       os: false,
       path: false,
+      async_hooks: false, // Node.js 내장 모듈, Edge Runtime에서는 사용 불가
     };
     
     // 정적 생성 관련 플러그인 제거

@@ -14,6 +14,7 @@
     "type-check": "tsc --noEmit",
     "pages:build": "npx @cloudflare/next-on-pages",
     "pages:deploy": "npm run build:cloudflare && wrangler pages deploy .vercel/output/static",
+    "vercel-build": "next build",
     "db:create": "wrangler d1 create webdoctor-db",
     "db:migrate": "wrangler d1 execute webdoctor-db --file=./migrations/0001_initial_schema.sql",
     "db:migrate:local": "wrangler d1 execute webdoctor-db --local --file=./migrations/0001_initial_schema.sql",

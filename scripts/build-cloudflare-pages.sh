@@ -107,10 +107,19 @@ fi
 # 이것이 다시 npm run build를 호출하지 않도록 환경 변수 설정
 export SKIP_ENV_VALIDATION=true
 export NEXT_TELEMETRY_DISABLED=1
+export CI=true  # CI 환경으로 인식하여 재귀 호출 방지
+
+# vercel build가 package.json의 "build" 대신 "vercel-build"를 사용하도록 설정
+# 또는 직접 next build를 호출하도록 환경 변수 설정
+# vercel build는 VERCEL_BUILD_COMMAND 환경 변수를 확인하지 않으므로,
+# package.json에 "vercel-build" 스크립트를 추가하여 해결
 
 # pages:build 실행 (재귀 호출 방지를 위해 직접 npx 실행)
 echo ""
 echo "🔄 @cloudflare/next-on-pages 실행 중..."
+# @cloudflare/next-on-pages가 vercel build를 호출할 때 재귀 호출 방지
+# vercel build는 package.json의 "build" 스크립트 대신 "vercel-build" 스크립트를 우선 사용
+# "vercel-build"가 없으면 "build"를 사용하므로, "vercel-build"를 추가하여 재귀 호출 방지
 npx @cloudflare/next-on-pages 2>&1 | tee -a build.log
 PAGES_BUILD_EXIT_CODE=$?
 
