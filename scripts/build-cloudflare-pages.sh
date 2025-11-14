@@ -153,6 +153,32 @@ if [ -d ".vercel/output/static" ]; then
   echo ""
   echo "✅ Cloudflare Pages 빌드가 완료되었습니다!"
   echo "📁 출력 디렉토리: .vercel/output/static"
+  
+  # 빌드 출력 구조 검증
+  if [ -f ".vercel/output/static/_worker.js" ] || [ -d ".vercel/output/static/_worker.js" ]; then
+    echo "✅ _worker.js 파일/디렉토리가 존재합니다."
+    # _worker.js/index.js 확인
+    if [ -f ".vercel/output/static/_worker.js/index.js" ]; then
+      echo "✅ _worker.js/index.js 파일이 존재합니다."
+    elif [ -d ".vercel/output/static/_worker.js" ]; then
+      echo "ℹ️  _worker.js 디렉토리 내용 확인 중..."
+      ls -la ".vercel/output/static/_worker.js" 2>/dev/null | head -10 || echo "디렉토리 내용을 확인할 수 없습니다."
+    fi
+  else
+    echo "⚠️  _worker.js를 찾을 수 없습니다. Cloudflare Pages가 자동으로 생성할 수 있습니다."
+  fi
+elif [ -d ".vercel/output" ]; then
+  echo ""
+  echo "⚠️  .vercel/output/static 디렉토리가 없지만 .vercel/output이 존재합니다."
+  echo "📁 .vercel/output 디렉토리 내용:"
+  ls -la ".vercel/output" 2>/dev/null | head -10 || echo "디렉토리 내용을 확인할 수 없습니다."
+  
+  # .vercel/output 구조 확인
+  if [ -d ".vercel/output/static" ]; then
+    echo "✅ .vercel/output/static 디렉토리가 존재합니다."
+  else
+    echo "ℹ️  Cloudflare Pages가 자동으로 변환을 처리할 수 있습니다."
+  fi
 elif [ "$PAGES_BUILD_EXIT_CODE" -ne 0 ]; then
   echo ""
   echo "⚠️  Cloudflare Pages 변환에 실패했습니다 (exit code: $PAGES_BUILD_EXIT_CODE)"
