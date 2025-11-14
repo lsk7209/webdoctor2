@@ -3,7 +3,7 @@
 # Next.js 빌드 오류를 처리하고 Cloudflare Pages 변환을 수행합니다.
 # global-error.tsx의 <html> 태그로 인한 정적 생성 오류를 우아하게 처리합니다.
 
-set -e  # 오류 발생 시 중단
+# set -e를 나중에 활성화 (정적 생성 오류 허용을 위해)
 
 echo "🚀 Cloudflare Pages 빌드 시작..."
 echo "📝 참고: global-error.tsx의 <html> 태그는 Next.js 요구사항입니다."
