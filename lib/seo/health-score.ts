@@ -18,13 +18,24 @@ export interface HealthScore {
  * @returns Health 점수 정보
  */
 export function calculateHealthScore(issues: Issue[]): HealthScore {
-  // open 상태인 이슈만 계산에 포함
-  const openIssues = issues.filter((issue) => issue.status === 'open');
+  // open 상태인 이슈만 계산에 포함 (단일 순회로 최적화)
+  let high = 0;
+  let medium = 0;
+  let low = 0;
+  let total = 0;
 
-  const high = openIssues.filter((i) => i.severity === 'high').length;
-  const medium = openIssues.filter((i) => i.severity === 'medium').length;
-  const low = openIssues.filter((i) => i.severity === 'low').length;
-  const total = openIssues.length;
+  for (const issue of issues) {
+    if (issue.status === 'open') {
+      total++;
+      if (issue.severity === 'high') {
+        high++;
+      } else if (issue.severity === 'medium') {
+        medium++;
+      } else if (issue.severity === 'low') {
+        low++;
+      }
+    }
+  }
 
   // 점수 계산: 기본 100점에서 감점
   // high: -10점, medium: -5점, low: -1점

@@ -9,7 +9,7 @@ import { getSession } from '@/lib/auth/session';
 import { getSiteById } from '@/lib/db/sites';
 import { getWorkspaceByOwnerId } from '@/lib/db/workspaces';
 import { runSiteAudit } from '@/lib/seo/audit';
-import { getIssuesBySiteId } from '@/lib/db/issues';
+import { getIssuesBySiteId, getIssuesStatsBySiteId } from '@/lib/db/issues';
 import { getD1Database } from '@/lib/cloudflare/env';
 import { validateSiteId } from '@/utils/validation';
 import {
@@ -19,7 +19,9 @@ import {
   databaseErrorResponse,
   serverErrorResponse,
   successResponse,
+  errorResponse,
 } from '@/utils/api-response';
+import { logApiRequest, error as logError } from '@/utils/logger';
 
 // Edge Runtime 사용 (Cloudflare 호환)
 export const runtime = 'edge';
@@ -42,10 +44,7 @@ export async function POST(
     // siteId 검증
     const siteIdValidation = validateSiteId(siteId);
     if (!siteIdValidation.valid) {
-      return NextResponse.json(
-        { error: siteIdValidation.error },
-        { status: 400 }
-      );
+      return errorResponse(siteIdValidation.error || '올바르지 않은 사이트 ID 형식입니다.', 400, 'INVALID_SITE_ID');
     }
 
     const db = getD1Database(request);
@@ -65,7 +64,14 @@ export async function POST(
     }
 
     // SEO 감사 실행
+    const startTime = Date.now();
     const issueCount = await runSiteAudit(db, siteId);
+    const duration = Date.now() - startTime;
+
+    logApiRequest('POST', `/api/sites/${siteId}/audit`, 200, duration, {
+      siteId,
+      issuesCount: issueCount,
+    });
 
     return successResponse(
       {
@@ -75,6 +81,7 @@ export async function POST(
       200
     );
   } catch (error) {
+    logError('SEO audit failed', error, { siteId: params.siteId });
     return serverErrorResponse('SEO 감사 중 오류가 발생했습니다.', error);
   }
 }
@@ -97,10 +104,7 @@ export async function GET(
     // siteId 검증
     const siteIdValidation = validateSiteId(siteId);
     if (!siteIdValidation.valid) {
-      return NextResponse.json(
-        { error: siteIdValidation.error },
-        { status: 400 }
-      );
+      return errorResponse(siteIdValidation.error || '올바르지 않은 사이트 ID 형식입니다.', 400, 'INVALID_SITE_ID');
     }
 
     const db = getD1Database(request);
@@ -127,25 +131,26 @@ export async function GET(
       status: searchParams.get('status') || undefined,
     };
 
-    // 이슈 목록 조회
-    const { issues } = await getIssuesBySiteId(db, siteId, filters);
+    const startTime = Date.now();
 
-    // 통계 계산
-    const stats = {
-      total: issues.length,
-      high: issues.filter((i) => i.severity === 'high').length,
-      medium: issues.filter((i) => i.severity === 'medium').length,
-      low: issues.filter((i) => i.severity === 'low').length,
-      open: issues.filter((i) => i.status === 'open').length,
-      in_progress: issues.filter((i) => i.status === 'in_progress').length,
-      resolved: issues.filter((i) => i.status === 'resolved').length,
-    };
+    // 이슈 목록 조회 및 통계 계산 (최적화: 데이터베이스 집계 쿼리 사용)
+    const [issuesResult, statsResult] = await Promise.all([
+      getIssuesBySiteId(db, siteId, filters),
+      getIssuesStatsBySiteId(db, siteId, { issue_type: filters.issue_type }),
+    ]);
+
+    const duration = Date.now() - startTime;
+    logApiRequest('GET', `/api/sites/${siteId}/audit`, 200, duration, {
+      siteId,
+      issuesCount: issuesResult.issues.length,
+    });
 
     return successResponse({
-      issues,
-      stats,
+      issues: issuesResult.issues,
+      stats: statsResult,
     });
   } catch (error) {
+    logError('Audit results fetch failed', error, { siteId: params.siteId });
     return serverErrorResponse('이슈 목록을 불러오는 중 오류가 발생했습니다.', error);
   }
 }

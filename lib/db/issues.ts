@@ -13,7 +13,7 @@ export async function getIssueById(
   db: D1Database,
   id: string
 ): Promise<Issue | null> {
-  const result = await db
+  const result =  await db
     .prepare('SELECT * FROM issues WHERE id = ?')
     .bind(id)
     .first<Issue>();

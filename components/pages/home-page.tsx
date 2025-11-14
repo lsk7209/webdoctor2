@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiPost } from '@/utils/api-client';
@@ -15,6 +15,7 @@ export default function HomePageClient() {
   const [url, setUrl] = useState('');
   const [showNotification, setShowNotification] = useState(false);
   const [loading, setLoading] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // URL 검증 (클라이언트 사이드)
   const urlError = useMemo(() => {
@@ -58,15 +59,30 @@ export default function HomePageClient() {
       // 성공 시 알림 표시
       setShowNotification(true);
       
+      // 이전 timeout 정리
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
       // 5초 후 알림 숨김 및 로그인 페이지로 이동
-      setTimeout(() => {
+      timeoutRef.current = setTimeout(() => {
         setShowNotification(false);
         router.push('/login');
+        timeoutRef.current = null;
       }, 5000);
     }
 
     setLoading(false);
   }, [url, router]);
+
+  // 컴포넌트 언마운트 시 timeout 정리 (메모리 누수 방지)
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="relative flex h-screen w-full flex-col overflow-hidden bg-background-light dark:bg-background-dark">

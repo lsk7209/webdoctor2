@@ -19,6 +19,8 @@ import { getPageSnapshotsBySiteId } from '@/lib/db/page-snapshots';
 import { selectTopPages } from '@/lib/lighthouse/priority';
 import { getLighthouseScoresBatch } from '@/lib/lighthouse/pagespeed';
 import { updatePageSnapshotLighthouse } from '@/lib/db/page-snapshots';
+import { CloudflareEnv } from '@/lib/cloudflare/env';
+import { info, error as logError, warn } from '@/utils/logger';
 
 export interface CrawlQueueMessage {
   siteId: string;
@@ -50,7 +52,7 @@ export async function enqueueCrawlJob(
 export async function processCrawlJob(
   db: D1Database,
   message: CrawlQueueMessage,
-  env?: any
+  env?: CloudflareEnv
 ): Promise<void> {
   const { siteId, crawlJobId, url, userPlan } = message;
 
@@ -59,7 +61,7 @@ export async function processCrawlJob(
     await updateCrawlJobStatus(db, crawlJobId, 'running');
     await updateSiteStatus(db, siteId, 'crawling');
 
-    const limits = getPlanLimits(userPlan as any);
+    const limits = getPlanLimits(userPlan as 'trial_basic' | 'basic' | 'pro' | 'enterprise');
 
     // 크롤러 실행
     const results = await runCrawler({
@@ -95,7 +97,7 @@ export async function processCrawlJob(
 
     // 배치로 페이지 스냅샷 생성 (D1 최적화: 순차 처리로 메모리 사용량 제어)
     // Edge Runtime 메모리 제한 고려하여 배치 크기 제한
-    console.log(`Creating ${pageSnapshotsToCreate.length} page snapshots...`);
+    info(`Creating ${pageSnapshotsToCreate.length} page snapshots`, { siteId, crawlJobId });
     
     const BATCH_SIZE = 50; // Edge Runtime 메모리 제한 고려
     for (let i = 0; i < pageSnapshotsToCreate.length; i += BATCH_SIZE) {
@@ -103,21 +105,34 @@ export async function processCrawlJob(
       await Promise.all(
         batch.map((snapshot) => createPageSnapshot(db, snapshot))
       );
-      console.log(`Created ${Math.min(i + BATCH_SIZE, pageSnapshotsToCreate.length)}/${pageSnapshotsToCreate.length} page snapshots`);
+      info(`Created page snapshots batch`, {
+        siteId,
+        crawlJobId,
+        progress: `${Math.min(i + BATCH_SIZE, pageSnapshotsToCreate.length)}/${pageSnapshotsToCreate.length}`,
+      });
     }
     
-    console.log(`Successfully created ${pageSnapshotsToCreate.length} page snapshots`);
+    info(`Successfully created ${pageSnapshotsToCreate.length} page snapshots`, { siteId, crawlJobId });
 
     // 주요 페이지 선별 (상위 100페이지)
     // D1 최적화: 필요한 페이지만 조회 (상위 200개만 조회하여 메모리 절약)
     const allPages = await getPageSnapshotsBySiteId(db, siteId, 200);
     const topPages = selectTopPages(allPages, 100);
     
-    console.log(`Selected ${topPages.length} top pages for Lighthouse analysis out of ${allPages.length} total pages`);
+    info(`Selected top pages for Lighthouse analysis`, {
+      siteId,
+      crawlJobId,
+      selected: topPages.length,
+      total: allPages.length,
+    });
 
     // Lighthouse 점수 수집 (주요 페이지만)
     if (topPages.length > 0) {
-      console.log(`Collecting Lighthouse scores for ${topPages.length} pages...`);
+      info(`Collecting Lighthouse scores`, {
+        siteId,
+        crawlJobId,
+        pagesCount: topPages.length,
+      });
       const urls = topPages.map((p) => p.url);
       const lighthouseScores = await getLighthouseScoresBatch(urls, {
         strategy: 'mobile', // 모바일 우선
@@ -137,13 +152,22 @@ export async function processCrawlJob(
           scoresCollected++;
         }
       }
-      console.log(`Collected Lighthouse scores for ${scoresCollected} pages`);
+      info(`Collected Lighthouse scores`, {
+        siteId,
+        crawlJobId,
+        scoresCollected,
+        totalPages: topPages.length,
+      });
     }
 
     // SEO 감사 실행
-    console.log(`Running SEO audit for site ${siteId}...`);
+    info(`Running SEO audit`, { siteId, crawlJobId });
     const issueCount = await runSiteAudit(db, siteId);
-    console.log(`SEO audit completed. Found ${issueCount} issues.`);
+    info(`SEO audit completed`, {
+      siteId,
+      crawlJobId,
+      issuesCount: issueCount,
+    });
 
     // 크롤 작업 완료
     await updateCrawlJobStatus(db, crawlJobId, 'completed');
@@ -155,15 +179,23 @@ export async function processCrawlJob(
       // 현재 작업을 제외하고 완료된 작업이 없으면 첫 감사로 간주
       const isFirstAudit = previousJobs.filter((j) => j.status === 'completed').length === 1;
       if (isFirstAudit) {
-        console.log(`Sending first audit complete email for site ${siteId}...`);
+        info(`Sending first audit complete email`, { siteId, crawlJobId });
         await sendFirstAuditCompleteEmail(db, siteId, env);
       }
     } catch (emailError) {
       // 이메일 발송 실패는 크롤 작업 실패로 간주하지 않음
-      console.error('Failed to send first audit complete email:', emailError);
+      warn('Failed to send first audit complete email', {
+        siteId,
+        crawlJobId,
+        error: emailError,
+      });
     }
   } catch (error) {
-    console.error('Crawl job failed:', error);
+    logError('Crawl job failed', error, {
+      siteId,
+      crawlJobId,
+      url,
+    });
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     await updateCrawlJobStatus(db, crawlJobId, 'failed', errorMessage);
     await updateSiteStatus(db, siteId, 'failed');
