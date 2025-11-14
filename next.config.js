@@ -55,6 +55,59 @@ const nextConfig = {
   // 보안: X-Powered-By 헤더 제거
   poweredByHeader: false,
   
+  // 보안 헤더 설정
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-DNS-Prefetch-Control',
+            value: 'on'
+          },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload'
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY'
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff'
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block'
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin'
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()'
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline'", // Next.js 및 개발 환경 필요
+              "style-src 'self' 'unsafe-inline'", // Tailwind CSS 필요
+              "img-src 'self' blob: data: https:",
+              "font-src 'self' data:",
+              "connect-src 'self' https:",
+              "frame-ancestors 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+            ].join('; ')
+          }
+        ]
+      }
+    ];
+  },
+  
   // SWC 최소화 활성화 (빌드 최적화)
   swcMinify: true,
   

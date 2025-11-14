@@ -6,8 +6,34 @@
  */
 
 import { SignJWT, jwtVerify } from 'jose';
+import { getEnvVar } from '@/lib/cloudflare/env';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+/**
+ * JWT 시크릿 키 가져오기 (환경 변수 검증 포함)
+ */
+function getJwtSecret(): string {
+  // 프로덕션 환경에서는 환경 변수가 필수
+  const isProduction = process.env.NODE_ENV === 'production';
+  const secret = getEnvVar('JWT_SECRET') || process.env.JWT_SECRET;
+  
+  if (!secret || secret === 'your-secret-key-change-in-production') {
+    if (isProduction) {
+      throw new Error('JWT_SECRET 환경 변수가 설정되지 않았습니다. 프로덕션 환경에서는 필수입니다.');
+    }
+    // 개발 환경에서는 경고만 출력
+    console.warn('⚠️  JWT_SECRET이 설정되지 않았습니다. 기본값을 사용합니다. 프로덕션에서는 반드시 설정하세요.');
+    return 'dev-secret-key-change-in-production';
+  }
+  
+  // 시크릿 키 길이 검증 (최소 32자)
+  if (secret.length < 32) {
+    throw new Error('JWT_SECRET은 최소 32자 이상이어야 합니다.');
+  }
+  
+  return secret;
+}
+
+const JWT_SECRET = getJwtSecret();
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 export interface JWTPayload {
