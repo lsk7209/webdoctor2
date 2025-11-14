@@ -16,8 +16,12 @@ export interface Queue {
 export interface CloudflareEnv {
   DB: D1Database;
   QUEUE?: Queue; // 크롤 작업 큐
+  MAILCHANNELS?: any; // MailChannels 바인딩
+  RESEND_API_KEY?: string; // Resend API 키 (환경 변수)
+  PAGESPEED_API_KEY?: string; // Pagespeed Insights API 키 (환경 변수)
   JWT_SECRET?: string;
   NODE_ENV?: string;
+  NEXT_PUBLIC_APP_URL?: string; // 앱 URL (환경 변수)
 }
 
 /**
@@ -47,8 +51,12 @@ export function getCloudflareEnv(request?: Request): CloudflareEnv | null {
       return {
         DB: process.env.DB as unknown as D1Database,
         QUEUE: process.env.QUEUE as unknown as Queue | undefined,
+        MAILCHANNELS: process.env.MAILCHANNELS,
+        RESEND_API_KEY: process.env.RESEND_API_KEY,
+        PAGESPEED_API_KEY: process.env.PAGESPEED_API_KEY,
         JWT_SECRET: process.env.JWT_SECRET,
         NODE_ENV: process.env.NODE_ENV,
+        NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
       };
     }
   }
@@ -113,4 +121,21 @@ export function getEnvVar(key: string, request?: Request): string | undefined {
   }
   
   return undefined;
+}
+
+/**
+ * MailChannels 바인딩 가져오기
+ */
+export function getMailChannels(request?: Request): any {
+  const env = getCloudflareEnv(request);
+  if (env?.MAILCHANNELS) {
+    return env.MAILCHANNELS;
+  }
+  
+  // Fallback: 직접 process.env 확인
+  if (typeof process !== 'undefined' && process.env && process.env.MAILCHANNELS) {
+    return process.env.MAILCHANNELS;
+  }
+  
+  return null;
 }

@@ -69,9 +69,13 @@ export async function getIssuesBySiteId(
   query += ` LIMIT ? OFFSET ?`;
   params.push(limit, offset);
 
+  // D1 데이터베이스 최적화: Prepared statements 재사용
+  const issuesStmt = db.prepare(query);
+  const countStmt = db.prepare(countQuery);
+  
   const [issuesResult, countResult] = await Promise.all([
-    db.prepare(query).bind(...params).all<Issue>(),
-    db.prepare(countQuery).bind(...countParams).first<{ total: number }>(),
+    issuesStmt.bind(...params).all<Issue>(),
+    countStmt.bind(...countParams).first<{ total: number }>(),
   ]);
 
   return {

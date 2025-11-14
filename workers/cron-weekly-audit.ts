@@ -21,6 +21,10 @@ export interface Env {
   QUEUE: {
     send(message: any): Promise<void>;
   };
+  MAILCHANNELS?: any; // MailChannels 바인딩
+  RESEND_API_KEY?: string; // Resend API 키 (환경 변수)
+  PAGESPEED_API_KEY?: string; // Pagespeed Insights API 키 (환경 변수)
+  NEXT_PUBLIC_APP_URL?: string; // 앱 URL (환경 변수)
 }
 
 interface CronJobStats {

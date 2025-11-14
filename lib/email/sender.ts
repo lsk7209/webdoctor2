@@ -63,7 +63,10 @@ async function sendViaMailChannels(
  */
 async function sendViaResend(options: EmailOptions): Promise<boolean> {
   try {
-    const resendApiKey = process.env.RESEND_API_KEY;
+    // Cloudflare 환경 변수에서 가져오기
+    const resendApiKey = 
+      (typeof process !== 'undefined' && process.env?.RESEND_API_KEY) ||
+      (typeof globalThis !== 'undefined' && 'env' in globalThis && (globalThis as any).env?.RESEND_API_KEY);
     if (!resendApiKey) {
       console.warn('RESEND_API_KEY 환경 변수가 설정되지 않았습니다.');
       return false;
@@ -112,7 +115,11 @@ export async function sendEmail(
   }
 
   // 개발 환경에서는 콘솔에만 출력
-  if (process.env.NODE_ENV === 'development') {
+  const nodeEnv = 
+    (typeof process !== 'undefined' && process.env?.NODE_ENV) ||
+    (typeof globalThis !== 'undefined' && 'env' in globalThis && (globalThis as any).env?.NODE_ENV) ||
+    'production';
+  if (nodeEnv === 'development') {
     console.log('📧 이메일 발송 (개발 모드):', {
       to: options.to,
       subject: options.subject,
