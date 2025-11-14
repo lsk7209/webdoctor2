@@ -69,12 +69,14 @@ export async function processCrawlJob(
       respectRobotsTxt: true,
     });
 
-    // 결과를 데이터베이스에 저장
+    // 결과를 데이터베이스에 저장 (배치 처리 최적화)
+    const pageSnapshotsToCreate = [];
+    
     for (const result of results) {
       if (result.html) {
         const parsed = parseHTML(result.html, result.url);
         
-        await createPageSnapshot(db, {
+        pageSnapshotsToCreate.push({
           site_id: siteId,
           url: result.url,
           http_status: result.statusCode,
@@ -91,8 +93,16 @@ export async function processCrawlJob(
       }
     }
 
+    // 배치로 페이지 스냅샷 생성 (병렬 처리로 성능 향상)
+    console.log(`Creating ${pageSnapshotsToCreate.length} page snapshots...`);
+    await Promise.all(
+      pageSnapshotsToCreate.map((snapshot) => createPageSnapshot(db, snapshot))
+    );
+    console.log(`Created ${pageSnapshotsToCreate.length} page snapshots`);
+
     // 주요 페이지 선별 (상위 100페이지)
-    const allPages = await getPageSnapshotsBySiteId(db, siteId, 999999);
+    // D1 최적화: 필요한 페이지만 조회 (상위 200개만 조회하여 메모리 절약)
+    const allPages = await getPageSnapshotsBySiteId(db, siteId, 200);
     const topPages = selectTopPages(allPages, 100);
     
     console.log(`Selected ${topPages.length} top pages for Lighthouse analysis out of ${allPages.length} total pages`);

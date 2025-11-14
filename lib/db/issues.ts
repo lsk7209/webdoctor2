@@ -126,35 +126,60 @@ export async function createIssue(db: D1Database, issue: Omit<Issue, 'id' | 'cre
 }
 
 /**
- * 여러 이슈 일괄 생성
+ * 여러 이슈 일괄 생성 (D1 최적화)
+ * 중복 확인을 데이터베이스 쿼리로 처리하여 효율성 향상
  */
 export async function createIssuesBatch(
   db: D1Database,
   issues: Array<Omit<Issue, 'id' | 'created_at' | 'updated_at'>>
 ): Promise<void> {
+  if (issues.length === 0) {
+    return;
+  }
+
   const now = getUnixTimestamp();
+  const siteId = issues[0]?.site_id;
+  if (!siteId) {
+    return;
+  }
 
-  // 기존 이슈와 중복 확인을 위해 먼저 조회
-  const { issues: existingIssues } = await getIssuesBySiteId(db, issues[0]?.site_id || '');
+  // 기존 이슈의 (issue_type, page_url) 조합을 Set으로 저장하여 빠른 조회
+  // 해결되지 않은 이슈만 확인
+  const existingIssuesResult = await db
+    .prepare(
+      `SELECT issue_type, page_url FROM issues 
+       WHERE site_id = ? AND status != 'resolved'`
+    )
+    .bind(siteId)
+    .all<{ issue_type: string; page_url: string }>();
 
-  for (const issue of issues) {
-    // 중복 확인: 동일한 site_id, issue_type, page_url 조합
-    const isDuplicate = existingIssues.some(
-      (existing) =>
-        existing.site_id === issue.site_id &&
-        existing.issue_type === issue.issue_type &&
-        existing.page_url === issue.page_url &&
-        existing.status !== 'resolved' // 해결된 이슈는 제외
-    );
+  const existingKeys = new Set(
+    (existingIssuesResult.results || []).map(
+      (issue) => `${issue.issue_type}:${issue.page_url}`
+    )
+  );
 
-    if (!isDuplicate) {
+  // 중복되지 않은 이슈만 필터링
+  const newIssues = issues.filter(
+    (issue) => !existingKeys.has(`${issue.issue_type}:${issue.page_url}`)
+  );
+
+  if (newIssues.length === 0) {
+    return;
+  }
+
+  // D1 배치 삽입 최적화: Prepared statement 재사용
+  const insertStmt = db.prepare(
+    `INSERT INTO issues 
+     (id, site_id, page_url, issue_type, severity, status, summary, description, fix_hint, affected_pages_count, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+
+  // 배치로 삽입 (D1은 배치 실행을 지원하므로 Promise.all 사용)
+  await Promise.all(
+    newIssues.map((issue) => {
       const id = generateId();
-      await db
-        .prepare(
-          `INSERT INTO issues 
-           (id, site_id, page_url, issue_type, severity, status, summary, description, fix_hint, affected_pages_count, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        )
+      return insertStmt
         .bind(
           id,
           issue.site_id,
@@ -170,8 +195,8 @@ export async function createIssuesBatch(
           now
         )
         .run();
-    }
-  }
+    })
+  );
 }
 
 /**

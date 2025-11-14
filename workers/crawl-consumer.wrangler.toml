@@ -11,6 +11,8 @@ database_id = "bb9a7b36-f877-4d4b-80cf-bf0e1993ca4e"
 # Queue Consumer 설정
 [[queues.consumers]]
 queue = "crawl-queue"
-max_batch_size = 10
+max_batch_size = 5  # 크롤 작업은 시간이 오래 걸리므로 배치 크기 감소
 max_batch_timeout = 30
+max_retries = 3  # 최대 재시도 횟수
+retry_delay = 60  # 재시도 지연 시간 (초)
 

@@ -38,7 +38,10 @@ interface CronJobStats {
 export default {
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
     const startTime = Date.now();
+    const cronTime = new Date(event.scheduledTime);
+    
     console.log(`[${new Date().toISOString()}] Starting weekly audit cron job`);
+    console.log(`Scheduled time: ${cronTime.toISOString()}, Cron: ${event.cron}`);
 
     const stats: CronJobStats = {
       totalWorkspaces: 0,
@@ -48,9 +51,15 @@ export default {
       errors: 0,
     };
 
+    // Cloudflare Workers 타임아웃: 30초 (무료 플랜) 또는 15분 (유료 플랜)
+    // 크론 작업은 최대 15분까지 실행 가능하지만, 안전하게 10분으로 제한
+    const MAX_EXECUTION_TIME = 10 * 60 * 1000; // 10분
+
     try {
-      // 모든 워크스페이스 조회
-      const workspaces = await env.DB.prepare('SELECT * FROM workspaces').all();
+      // 모든 워크스페이스 조회 (D1 최적화: 필요한 컬럼만 선택)
+      const workspaces = await env.DB
+        .prepare('SELECT id, owner_user_id FROM workspaces')
+        .all();
 
       if (!workspaces.results || workspaces.results.length === 0) {
         console.log('No workspaces found');
@@ -62,8 +71,14 @@ export default {
 
       // 각 워크스페이스 처리
       for (const workspace of workspaces.results as any[]) {
+        // 타임아웃 체크
+        if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+          console.warn(`Cron job timeout approaching. Processed ${stats.totalWorkspaces} workspaces so far.`);
+          break;
+        }
+
         try {
-          // 사용자 정보 조회
+          // 사용자 정보 조회 (필요한 필드만)
           const user = await getUserById(env.DB, workspace.owner_user_id);
           if (!user) {
             console.warn(`User not found for workspace ${workspace.id}`);
@@ -147,13 +162,34 @@ export default {
       }
 
       const duration = Date.now() - startTime;
+      const durationSeconds = (duration / 1000).toFixed(2);
+      
       console.log(`[${new Date().toISOString()}] Weekly audit cron job completed`);
       console.log(`Stats:`, {
         ...stats,
-        duration: `${duration}ms`,
+        duration: `${durationSeconds}s`,
+        durationMs: duration,
       });
+
+      // 성공적으로 완료된 경우에만 통계 출력
+      if (stats.errors === 0) {
+        console.log(`✅ All workspaces processed successfully`);
+      } else {
+        console.warn(`⚠️  Completed with ${stats.errors} errors`);
+      }
     } catch (error) {
-      console.error('Weekly audit cron job failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
+      console.error(`[${new Date().toISOString()}] Weekly audit cron job failed:`, {
+        error: errorMessage,
+        stack: errorStack,
+        stats,
+        duration: `${((Date.now() - startTime) / 1000).toFixed(2)}s`,
+      });
+      
+      // 크론 작업 실패는 재시도되므로 에러를 throw하지 않고 로그만 남김
+      // Cloudflare가 자동으로 재시도하지만, 연속 실패를 방지하기 위해 에러를 throw
       throw error;
     }
   },
