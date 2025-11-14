@@ -37,8 +37,8 @@ export async function getIssuesBySiteId(
 ): Promise<{ issues: Issue[]; total: number }> {
   let query = 'SELECT * FROM issues WHERE site_id = ?';
   let countQuery = 'SELECT COUNT(*) as total FROM issues WHERE site_id = ?';
-  const params: any[] = [siteId];
-  const countParams: any[] = [siteId];
+  const params: (string | number)[] = [siteId];
+  const countParams: (string | number)[] = [siteId];
 
   if (filters?.issue_type) {
     query += ' AND issue_type = ?';
@@ -81,6 +81,71 @@ export async function getIssuesBySiteId(
   return {
     issues: issuesResult.results || [],
     total: countResult?.total || 0,
+  };
+}
+
+/**
+ * 이슈 통계 조회 (최적화: 집계 쿼리 사용)
+ * 전체 이슈를 조회하지 않고 데이터베이스에서 직접 통계 계산
+ */
+export async function getIssuesStatsBySiteId(
+  db: D1Database,
+  siteId: string,
+  filters?: {
+    issue_type?: string;
+  }
+): Promise<{
+  total: number;
+  high: number;
+  medium: number;
+  low: number;
+  open: number;
+  in_progress: number;
+  resolved: number;
+}> {
+  let whereClause = 'WHERE site_id = ?';
+  const params: (string | number)[] = [siteId];
+
+  if (filters?.issue_type) {
+    whereClause += ' AND issue_type = ?';
+    params.push(filters.issue_type);
+  }
+
+  // 단일 쿼리로 모든 통계 계산 (최적화)
+  const statsQuery = `
+    SELECT 
+      COUNT(*) as total,
+      SUM(CASE WHEN severity = 'high' THEN 1 ELSE 0 END) as high,
+      SUM(CASE WHEN severity = 'medium' THEN 1 ELSE 0 END) as medium,
+      SUM(CASE WHEN severity = 'low' THEN 1 ELSE 0 END) as low,
+      SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open,
+      SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+      SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved
+    FROM issues
+    ${whereClause}
+  `;
+
+  const result = await db
+    .prepare(statsQuery)
+    .bind(...params)
+    .first<{
+      total: number;
+      high: number;
+      medium: number;
+      low: number;
+      open: number;
+      in_progress: number;
+      resolved: number;
+    }>();
+
+  return {
+    total: result?.total || 0,
+    high: result?.high || 0,
+    medium: result?.medium || 0,
+    low: result?.low || 0,
+    open: result?.open || 0,
+    in_progress: result?.in_progress || 0,
+    resolved: result?.resolved || 0,
   };
 }
 
@@ -180,27 +245,24 @@ export async function createIssuesBatch(
   const BATCH_SIZE = 100;
   for (let i = 0; i < newIssues.length; i += BATCH_SIZE) {
     const batch = newIssues.slice(i, i + BATCH_SIZE);
-    
-    // D1 batch() 메서드 사용 (단일 트랜잭션)
-    await db.batch(
-      batch.map((issue) => {
-        const id = generateId();
-        return insertStmt.bind(
-          id,
-          issue.site_id,
-          issue.page_url,
-          issue.issue_type,
-          issue.severity,
-          issue.status,
-          issue.summary,
-          issue.description,
-          issue.fix_hint,
-          issue.affected_pages_count,
-          now,
-          now
-        );
-      })
+    const statements = batch.map((issue) =>
+      insertStmt.bind(
+        generateId(),
+        issue.site_id,
+        issue.page_url,
+        issue.issue_type,
+        issue.severity,
+        issue.status,
+        issue.summary,
+        issue.description,
+        issue.fix_hint,
+        issue.affected_pages_count,
+        now,
+        now
+      )
     );
+
+    await db.batch(statements);
   }
 }
 
@@ -213,7 +275,6 @@ export async function updateIssueStatus(
   status: Issue['status']
 ): Promise<void> {
   const now = getUnixTimestamp();
-
   await db
     .prepare('UPDATE issues SET status = ?, updated_at = ? WHERE id = ?')
     .bind(status, now, id)
@@ -241,9 +302,101 @@ export async function getIssuesByWorkspaceId(
 }
 
 /**
+ * 워크스페이스의 이슈 통계 조회 (최적화: 집계 쿼리 사용)
+ * 전체 이슈를 조회하지 않고 데이터베이스에서 직접 통계 계산
+ */
+export async function getIssuesStatsByWorkspaceId(
+  db: D1Database,
+  workspaceId: string
+): Promise<{
+  total: number;
+  high: number;
+  medium: number;
+  low: number;
+  open: number;
+  in_progress: number;
+  resolved: number;
+}> {
+  // 단일 쿼리로 모든 통계 계산 (최적화)
+  const statsQuery = `
+    SELECT 
+      COUNT(*) as total,
+      SUM(CASE WHEN i.severity = 'high' THEN 1 ELSE 0 END) as high,
+      SUM(CASE WHEN i.severity = 'medium' THEN 1 ELSE 0 END) as medium,
+      SUM(CASE WHEN i.severity = 'low' THEN 1 ELSE 0 END) as low,
+      SUM(CASE WHEN i.status = 'open' THEN 1 ELSE 0 END) as open,
+      SUM(CASE WHEN i.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+      SUM(CASE WHEN i.status = 'resolved' THEN 1 ELSE 0 END) as resolved
+    FROM issues i
+    INNER JOIN sites s ON i.site_id = s.id
+    WHERE s.workspace_id = ?
+  `;
+
+  const result = await db
+    .prepare(statsQuery)
+    .bind(workspaceId)
+    .first<{
+      total: number;
+      high: number;
+      medium: number;
+      low: number;
+      open: number;
+      in_progress: number;
+      resolved: number;
+    }>();
+
+  return {
+    total: result?.total || 0,
+    high: result?.high || 0,
+    medium: result?.medium || 0,
+    low: result?.low || 0,
+    open: result?.open || 0,
+    in_progress: result?.in_progress || 0,
+    resolved: result?.resolved || 0,
+  };
+}
+
+/**
+ * 워크스페이스의 사이트별 이슈 목록 조회 (Health 점수 계산용)
+ * 최적화: 필요한 사이트의 이슈만 조회
+ */
+export async function getIssuesBySiteIds(
+  db: D1Database,
+  siteIds: string[]
+): Promise<Map<string, Issue[]>> {
+  if (siteIds.length === 0) {
+    return new Map();
+  }
+
+  // IN 절을 사용하여 여러 사이트의 이슈를 한 번에 조회
+  const placeholders = siteIds.map(() => '?').join(',');
+  const result = await db
+    .prepare(
+      `SELECT i.* FROM issues i
+       WHERE i.site_id IN (${placeholders})
+       ORDER BY i.severity DESC, i.created_at DESC`
+    )
+    .bind(...siteIds)
+    .all<Issue>();
+
+  // 사이트 ID별로 그룹화
+  const issuesBySiteId = new Map<string, Issue[]>();
+  for (const issue of result.results || []) {
+    if (!issuesBySiteId.has(issue.site_id)) {
+      issuesBySiteId.set(issue.site_id, []);
+    }
+    issuesBySiteId.get(issue.site_id)!.push(issue);
+  }
+
+  return issuesBySiteId;
+}
+
+/**
  * 사이트의 모든 이슈 삭제 (크롤 재실행 시)
  */
 export async function deleteIssuesBySiteId(db: D1Database, siteId: string): Promise<void> {
-  await db.prepare('DELETE FROM issues WHERE site_id = ?').bind(siteId).run();
+  await db
+    .prepare('DELETE FROM issues WHERE site_id = ?')
+    .bind(siteId)
+    .run();
 }
-

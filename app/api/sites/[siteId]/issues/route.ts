@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { getSiteById } from '@/lib/db/sites';
-import { getIssuesBySiteId, updateIssueStatus } from '@/lib/db/issues';
+import { getIssuesBySiteId, getIssuesStatsBySiteId, updateIssueStatus } from '@/lib/db/issues';
 import { getWorkspaceByOwnerId } from '@/lib/db/workspaces';
 import { getD1Database } from '@/lib/cloudflare/env';
 import { validateSiteId } from '@/utils/validation';
@@ -44,10 +44,7 @@ export async function GET(
     // siteId 검증
     const siteIdValidation = validateSiteId(siteId);
     if (!siteIdValidation.valid) {
-      return NextResponse.json(
-        { error: siteIdValidation.error },
-        { status: 400 }
-      );
+      return errorResponse(siteIdValidation.error || '올바르지 않은 사이트 ID 형식입니다.', 400, 'INVALID_SITE_ID');
     }
 
     const db = getD1Database(request);
@@ -106,17 +103,11 @@ export async function GET(
       });
     }
 
-    // 전체 통계 계산을 위해 필터 없이 조회 (최적화: 필요한 필드만)
-    const { issues: allIssues } = await getIssuesBySiteId(db, siteId, { limit: 999999 });
-    const stats = {
-      total: allIssues.length,
-      high: allIssues.filter((i) => i.severity === 'high').length,
-      medium: allIssues.filter((i) => i.severity === 'medium').length,
-      low: allIssues.filter((i) => i.severity === 'low').length,
-      open: allIssues.filter((i) => i.status === 'open').length,
-      in_progress: allIssues.filter((i) => i.status === 'in_progress').length,
-      resolved: allIssues.filter((i) => i.status === 'resolved').length,
-    };
+    // 통계 계산 (최적화: 데이터베이스 집계 쿼리 사용)
+    // 필터가 적용된 통계를 계산하기 위해 동일한 필터 사용
+    const stats = await getIssuesStatsBySiteId(db, siteId, {
+      issue_type: filters.issue_type,
+    });
 
     const duration = Date.now() - startTime;
     console.log(`GET /api/sites/${siteId}/issues completed in ${duration}ms`);

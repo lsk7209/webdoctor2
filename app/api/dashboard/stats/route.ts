@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { getWorkspaceByOwnerId } from '@/lib/db/workspaces';
 import { getSitesByWorkspaceId } from '@/lib/db/sites';
-import { getIssuesByWorkspaceId } from '@/lib/db/issues';
+import { getIssuesStatsByWorkspaceId, getIssuesBySiteIds } from '@/lib/db/issues';
 import { getD1Database } from '@/lib/cloudflare/env';
 import { calculateHealthScore } from '@/lib/seo/health-score';
 import {
@@ -55,33 +55,30 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 모든 이슈 조회
-    const allIssues = await getIssuesByWorkspaceId(db, workspace.id);
-
-    // 전체 통계 계산
+    // 전체 통계 계산 (최적화: 데이터베이스 집계 쿼리 사용)
     const totalSites = sites.length;
     const readySites = sites.filter((s) => s.status === 'ready').length;
     const crawlingSites = sites.filter((s) => s.status === 'crawling').length;
     const pendingSites = sites.filter((s) => s.status === 'pending').length;
     const failedSites = sites.filter((s) => s.status === 'failed').length;
 
-    // 이슈 통계
-    const openIssues = allIssues.filter(
-      (i) => i.status === 'open' || i.status === 'in_progress'
-    );
-    const totalIssues = openIssues.length;
-    const highIssues = openIssues.filter((i) => i.severity === 'high').length;
-    const mediumIssues = openIssues.filter((i) => i.severity === 'medium').length;
-    const lowIssues = openIssues.filter((i) => i.severity === 'low').length;
+    // 이슈 통계 (최적화: 데이터베이스 집계 쿼리 사용)
+    const allIssuesStats = await getIssuesStatsByWorkspaceId(db, workspace.id);
+    // 열린 이슈만 계산 (open + in_progress)
+    const totalIssues = allIssuesStats.open + allIssuesStats.in_progress;
+    const highIssues = allIssuesStats.high;
+    const mediumIssues = allIssuesStats.medium;
+    const lowIssues = allIssuesStats.low;
 
-    // 사이트별 Health 점수 계산
+    // 사이트별 Health 점수 계산 (최적화: ready 상태인 사이트의 이슈만 조회)
+    const readySiteIds = sites.filter((s) => s.status === 'ready').map((s) => s.id);
+    const issuesBySiteId = await getIssuesBySiteIds(db, readySiteIds);
+    
     const siteHealthScores: Array<{ siteId: string; score: number }> = [];
-    for (const site of sites) {
-      if (site.status === 'ready') {
-        const siteIssues = allIssues.filter((i) => i.site_id === site.id);
-        const healthScore = calculateHealthScore(siteIssues);
-        siteHealthScores.push({ siteId: site.id, score: healthScore.score });
-      }
+    for (const siteId of readySiteIds) {
+      const siteIssues = issuesBySiteId.get(siteId) || [];
+      const healthScore = calculateHealthScore(siteIssues);
+      siteHealthScores.push({ siteId, score: healthScore.score });
     }
 
     // 평균 Health 점수 계산

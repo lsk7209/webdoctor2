@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 
 interface Issue {
   id: string;
@@ -27,7 +27,7 @@ interface IssuesListProps {
   refreshTrigger?: number; // 새로고침 트리거
 }
 
-export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: IssuesListProps) {
+function IssuesList({ siteId, onIssueClick, refreshTrigger }: IssuesListProps) {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -53,12 +53,7 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
     setPage(1); // 필터 변경 시 첫 페이지로 리셋
   }, [filters]);
 
-  useEffect(() => {
-    fetchIssues();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId, filters, refreshTrigger, page]);
-
-  const fetchIssues = async () => {
+  const fetchIssues = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -84,13 +79,76 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
       }
     } catch (err) {
       setError('이슈 목록을 불러오는 중 오류가 발생했습니다.');
-      console.error('이슈 목록 조회 실패:', err);
+      // 프로덕션에서는 구조화된 에러 로깅 사용 권장
+      if (process.env.NODE_ENV === 'development') {
+        console.error('이슈 목록 조회 실패:', err);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [siteId, filters, page, stats]);
 
-  const handleExport = async (format: 'json' | 'csv') => {
+  useEffect(() => {
+    fetchIssues();
+  }, [fetchIssues, refreshTrigger]);
+
+  // 성능 최적화: 함수들을 useMemo와 useCallback으로 메모이제이션
+  const getSeverityColor = useCallback((severity: string) => {
+    switch (severity) {
+      case 'high':
+        return 'bg-red-100 text-red-800';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'low':
+        return 'bg-blue-100 text-blue-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  }, []);
+
+  const getStatusColor = useCallback((status: string) => {
+    switch (status) {
+      case 'open':
+        return 'bg-red-50 text-red-700';
+      case 'in_progress':
+        return 'bg-yellow-50 text-yellow-700';
+      case 'resolved':
+        return 'bg-green-50 text-green-700';
+      case 'ignored':
+        return 'bg-gray-50 text-gray-700';
+      default:
+        return 'bg-gray-50 text-gray-700';
+    }
+  }, []);
+
+  const getIssueTypeLabel = useCallback((type: string) => {
+    const labels: Record<string, string> = {
+      missing_title: 'Title 누락',
+      duplicate_title: '중복 Title',
+      short_description: '짧은 Description',
+      long_description: '긴 Description',
+      missing_description: 'Description 누락',
+      no_h1: 'H1 없음',
+      multiple_h1: '여러 H1',
+      broken_internal_link: '깨진 링크',
+      no_canonical_on_parameterized: 'Canonical 누락',
+      slow_page: '느린 페이지',
+      low_seo_score: '낮은 SEO 점수',
+      no_structured_data: '구조화 데이터 없음',
+      poor_heading_structure: '헤딩 구조 문제',
+      missing_open_graph: 'Open Graph 태그 없음',
+    };
+    return labels[type] || type;
+  }, []);
+
+  // 사용 가능한 이슈 타입 목록 (고유값 추출) - useMemo로 최적화
+  const availableIssueTypes = useMemo(
+    () => Array.from(new Set(issues.map((issue) => issue.issue_type))).sort(),
+    [issues]
+  );
+
+  // 핸들러 메모이제이션
+  const handleExport = useCallback(async (format: 'json' | 'csv') => {
     try {
       const params = new URLSearchParams();
       if (filters.severity) params.append('severity', filters.severity);
@@ -109,63 +167,13 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err) {
-      console.error('이슈 내보내기 실패:', err);
+      // 프로덕션에서는 구조화된 에러 로깅 사용 권장
+      if (process.env.NODE_ENV === 'development') {
+        console.error('이슈 내보내기 실패:', err);
+      }
       alert('이슈 내보내기에 실패했습니다.');
     }
-  };
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'high':
-        return 'bg-red-100 text-red-800';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'low':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'open':
-        return 'bg-red-50 text-red-700';
-      case 'in_progress':
-        return 'bg-yellow-50 text-yellow-700';
-      case 'resolved':
-        return 'bg-green-50 text-green-700';
-      case 'ignored':
-        return 'bg-gray-50 text-gray-700';
-      default:
-        return 'bg-gray-50 text-gray-700';
-    }
-  };
-
-  const getIssueTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      missing_title: 'Title 누락',
-      duplicate_title: '중복 Title',
-      short_description: '짧은 Description',
-      long_description: '긴 Description',
-      missing_description: 'Description 누락',
-      no_h1: 'H1 없음',
-      multiple_h1: '여러 H1',
-      broken_internal_link: '깨진 링크',
-      no_canonical_on_parameterized: 'Canonical 누락',
-      slow_page: '느린 페이지',
-      low_seo_score: '낮은 SEO 점수',
-      no_structured_data: '구조화 데이터 없음',
-      poor_heading_structure: '헤딩 구조 문제',
-      missing_open_graph: 'Open Graph 태그 없음',
-    };
-    return labels[type] || type;
-  };
-
-  // 사용 가능한 이슈 타입 목록 (고유값 추출)
-  const availableIssueTypes = Array.from(
-    new Set(issues.map((issue) => issue.issue_type))
-  ).sort();
+  }, [siteId, filters]);
 
   if (loading) {
     return (
@@ -194,13 +202,15 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
         <div className="flex gap-2">
           <button
             onClick={() => handleExport('csv')}
-            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            aria-label="CSV 형식으로 이슈 내보내기"
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
             CSV 내보내기
           </button>
           <button
             onClick={() => handleExport('json')}
-            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            aria-label="JSON 형식으로 이슈 내보내기"
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
             JSON 내보내기
           </button>
@@ -212,8 +222,9 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
         <select
           value={filters.severity}
           onChange={(e) =>
-            setFilters({ ...filters, severity: e.target.value as any })
+            setFilters({ ...filters, severity: e.target.value as '' | 'high' | 'medium' | 'low' })
           }
+          aria-label="심각도 필터"
           className="rounded-md border border-gray-300 px-3 py-2 text-sm"
         >
           <option value="">모든 심각도</option>
@@ -225,8 +236,9 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
         <select
           value={filters.status}
           onChange={(e) =>
-            setFilters({ ...filters, status: e.target.value as any })
+            setFilters({ ...filters, status: e.target.value as '' | 'open' | 'in_progress' | 'resolved' | 'ignored' })
           }
+          aria-label="상태 필터"
           className="rounded-md border border-gray-300 px-3 py-2 text-sm"
         >
           <option value="">모든 상태</option>
@@ -241,6 +253,7 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
           onChange={(e) =>
             setFilters({ ...filters, issue_type: e.target.value })
           }
+          aria-label="이슈 타입 필터"
           className="rounded-md border border-gray-300 px-3 py-2 text-sm"
         >
           <option value="">모든 이슈 타입</option>
@@ -270,7 +283,16 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
             <div
               key={issue.id}
               onClick={() => onIssueClick?.(issue)}
-              className="cursor-pointer rounded-md border border-gray-200 p-4 transition-colors hover:bg-gray-50"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onIssueClick?.(issue);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label={`이슈: ${issue.summary}`}
+              className="cursor-pointer rounded-md border border-gray-200 p-4 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -326,17 +348,19 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="이전 페이지"
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               이전
             </button>
-            <span className="px-3 py-1.5 text-sm text-gray-700">
+            <span className="px-3 py-1.5 text-sm text-gray-700" aria-label={`페이지 ${page} / ${totalPages}`}>
               {page} / {totalPages}
             </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="다음 페이지"
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               다음
             </button>
@@ -346,4 +370,7 @@ export default function IssuesList({ siteId, onIssueClick, refreshTrigger }: Iss
     </div>
   );
 }
+
+// 성능 최적화: React.memo로 불필요한 리렌더링 방지
+export default memo(IssuesList);
 

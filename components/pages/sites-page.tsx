@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import Link from 'next/link';
 
 interface Site {
@@ -17,18 +17,14 @@ interface Site {
   health_score: number | null;
 }
 
-export default function SitesPageClient() {
+function SitesPageClient() {
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'health' | 'status' | 'date'>('name');
 
-  useEffect(() => {
-    fetchSites();
-  }, []);
-
-  const fetchSites = async () => {
+  const fetchSites = useCallback(async () => {
     try {
       const response = await fetch('/api/sites');
       const data = await response.json();
@@ -38,15 +34,60 @@ export default function SitesPageClient() {
         return;
       }
 
-      setSites(data.sites || []);
+      setSites(data.data?.sites || data.sites || []);
     } catch (err) {
       setError('사이트 목록을 불러오는 중 오류가 발생했습니다.');
+      // 프로덕션에서는 구조화된 에러 로깅 사용 권장
+      if (process.env.NODE_ENV === 'development') {
+        console.error('사이트 목록 조회 실패:', err);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const getStatusBadge = (status: Site['status']) => {
+  useEffect(() => {
+    fetchSites();
+  }, [fetchSites]);
+
+  // 성능 최적화: 필터링 및 정렬 결과를 useMemo로 메모이제이션
+  const filteredAndSortedSites = useMemo(() => {
+    return sites
+      .filter((site) => {
+        if (!searchQuery) return true;
+        const query = searchQuery.toLowerCase();
+        return (
+          site.url.toLowerCase().includes(query) ||
+          (site.display_name && site.display_name.toLowerCase().includes(query))
+        );
+      })
+      .sort((a, b) => {
+        switch (sortBy) {
+          case 'name':
+            return (
+              (a.display_name || a.url).localeCompare(b.display_name || b.url) ||
+              a.url.localeCompare(b.url)
+            );
+          case 'health':
+            if (a.health_score === null && b.health_score === null) return 0;
+            if (a.health_score === null) return 1;
+            if (b.health_score === null) return -1;
+            return b.health_score - a.health_score;
+          case 'status':
+            const statusOrder = { ready: 0, crawling: 1, pending: 2, failed: 3 };
+            return statusOrder[a.status] - statusOrder[b.status];
+          case 'date':
+            if (!a.last_crawled_at && !b.last_crawled_at) return 0;
+            if (!a.last_crawled_at) return 1;
+            if (!b.last_crawled_at) return -1;
+            return b.last_crawled_at - a.last_crawled_at;
+          default:
+            return 0;
+        }
+      });
+  }, [sites, searchQuery, sortBy]);
+
+  const getStatusBadge = useCallback((status: Site['status']) => {
     const styles = {
       pending: 'bg-gray-100 text-gray-800',
       crawling: 'bg-blue-100 text-blue-800',
@@ -66,11 +107,12 @@ export default function SitesPageClient() {
         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
           styles[status]
         }`}
+        aria-label={`상태: ${labels[status]}`}
       >
         {labels[status]}
       </span>
     );
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -108,13 +150,15 @@ export default function SitesPageClient() {
                 placeholder="사이트 검색..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="사이트 검색"
                 className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              onChange={(e) => setSortBy(e.target.value as 'name' | 'health' | 'status' | 'date')}
+              aria-label="정렬 기준 선택"
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               <option value="name">이름순</option>
               <option value="health">Health 점수순</option>
@@ -142,40 +186,7 @@ export default function SitesPageClient() {
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sites
-              .filter((site) => {
-                if (!searchQuery) return true;
-                const query = searchQuery.toLowerCase();
-                return (
-                  site.url.toLowerCase().includes(query) ||
-                  (site.display_name && site.display_name.toLowerCase().includes(query))
-                );
-              })
-              .sort((a, b) => {
-                switch (sortBy) {
-                  case 'name':
-                    return (
-                      (a.display_name || a.url).localeCompare(b.display_name || b.url) ||
-                      a.url.localeCompare(b.url)
-                    );
-                  case 'health':
-                    if (a.health_score === null && b.health_score === null) return 0;
-                    if (a.health_score === null) return 1;
-                    if (b.health_score === null) return -1;
-                    return b.health_score - a.health_score;
-                  case 'status':
-                    const statusOrder = { ready: 0, crawling: 1, pending: 2, failed: 3 };
-                    return statusOrder[a.status] - statusOrder[b.status];
-                  case 'date':
-                    if (!a.last_crawled_at && !b.last_crawled_at) return 0;
-                    if (!a.last_crawled_at) return 1;
-                    if (!b.last_crawled_at) return -1;
-                    return b.last_crawled_at - a.last_crawled_at;
-                  default:
-                    return 0;
-                }
-              })
-              .map((site) => (
+            {filteredAndSortedSites.map((site) => (
               <Link
                 key={site.id}
                 href={`/sites/${site.id}`}
@@ -220,4 +231,7 @@ export default function SitesPageClient() {
     </div>
   );
 }
+
+// 성능 최적화: React.memo로 불필요한 리렌더링 방지
+export default memo(SitesPageClient);
 

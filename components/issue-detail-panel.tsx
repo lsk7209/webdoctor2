@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 
 interface Issue {
   id: string;
@@ -27,7 +27,7 @@ interface IssueDetailPanelProps {
   onStatusChange?: (issueId: string, status: string) => void;
 }
 
-export default function IssueDetailPanel({
+function IssueDetailPanel({
   issue,
   onClose,
   onStatusChange,
@@ -38,7 +38,7 @@ export default function IssueDetailPanel({
     return null;
   }
 
-  const getSeverityColor = (severity: string) => {
+  const getSeverityColor = useCallback((severity: string) => {
     switch (severity) {
       case 'high':
         return 'bg-red-100 text-red-800';
@@ -49,9 +49,9 @@ export default function IssueDetailPanel({
       default:
         return 'bg-gray-100 text-gray-800';
     }
-  };
+  }, []);
 
-  const getIssueTypeLabel = (type: string) => {
+  const getIssueTypeLabel = useCallback((type: string) => {
     const labels: Record<string, string> = {
       missing_title: 'Title 누락',
       duplicate_title: '중복 Title',
@@ -65,9 +65,9 @@ export default function IssueDetailPanel({
       no_structured_data: '구조화 데이터 없음',
     };
     return labels[type] || type;
-  };
+  }, []);
 
-  const handleStatusChange = async (newStatus: string) => {
+  const handleStatusChange = useCallback(async (newStatus: string) => {
     if (updating) return;
 
     setUpdating(true);
@@ -87,11 +87,14 @@ export default function IssueDetailPanel({
         onStatusChange?.(issue.id, newStatus);
       }
     } catch (error) {
-      console.error('이슈 상태 업데이트 실패:', error);
+      // 프로덕션에서는 구조화된 에러 로깅 사용 권장
+      if (process.env.NODE_ENV === 'development') {
+        console.error('이슈 상태 업데이트 실패:', error);
+      }
     } finally {
       setUpdating(false);
     }
-  };
+  }, [issue.site_id, issue.id, onStatusChange]);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -109,7 +112,8 @@ export default function IssueDetailPanel({
             <h2 className="text-xl font-semibold text-gray-900">이슈 상세</h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
+              aria-label="이슈 상세 패널 닫기"
+              className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
             >
               <svg
                 className="h-6 w-6"
@@ -194,7 +198,8 @@ export default function IssueDetailPanel({
                 value={issue.status}
                 onChange={(e) => handleStatusChange(e.target.value)}
                 disabled={updating}
-                className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                aria-label="이슈 상태 변경"
+                className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 <option value="open">열림</option>
                 <option value="in_progress">진행 중</option>
@@ -208,4 +213,7 @@ export default function IssueDetailPanel({
     </div>
   );
 }
+
+// 성능 최적화: React.memo로 불필요한 리렌더링 방지
+export default memo(IssueDetailPanel);
 
