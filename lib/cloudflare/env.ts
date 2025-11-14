@@ -45,25 +45,36 @@ export function getCloudflareEnv(request?: Request): CloudflareEnv | null {
   // @cloudflare/next-on-pages가 Request 객체에 env를 주입할 수 있음
   if (request && typeof request === 'object') {
     // Request 객체에 env 속성이 있는지 확인
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const requestAny = request as Record<string, any>;
-    if (requestAny.env && requestAny.env.DB) {
-      return requestAny.env as CloudflareEnv;
+    // Cloudflare Pages Functions에서 Request 객체에 env가 주입될 수 있음
+    const requestAny = request as unknown as Record<string, unknown>;
+    if (requestAny.env && typeof requestAny.env === 'object' && requestAny.env !== null) {
+      const env = requestAny.env as Record<string, unknown>;
+      if (env.DB) {
+        return env as unknown as CloudflareEnv;
+      }
     }
     
     // Request.cf 또는 Request.ctx를 통한 접근 시도
-    if (requestAny.cf?.env && requestAny.cf.env.DB) {
-      return requestAny.cf.env as CloudflareEnv;
+    if (requestAny.cf && typeof requestAny.cf === 'object' && requestAny.cf !== null) {
+      const cf = requestAny.cf as Record<string, unknown>;
+      if (cf.env && typeof cf.env === 'object' && cf.env !== null) {
+        const env = cf.env as Record<string, unknown>;
+        if (env.DB) {
+          return env as unknown as CloudflareEnv;
+        }
+      }
     }
   }
 
   // 방법 2: Cloudflare Workers 환경 (globalThis.env)
   if (typeof globalThis !== 'undefined') {
     if ('env' in globalThis) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const env = (globalThis as Record<string, any>).env;
-      if (env && env.DB) {
-        return env as CloudflareEnv;
+      const env = (globalThis as Record<string, unknown>).env;
+      if (env && typeof env === 'object' && env !== null) {
+        const envObj = env as Record<string, unknown>;
+        if (envObj.DB) {
+          return envObj as unknown as CloudflareEnv;
+        }
       }
     }
   }
@@ -156,7 +167,6 @@ export function getMailChannels(request?: Request): MailChannelsBinding | null {
   
   // Fallback: 직접 process.env 확인
   if (typeof process !== 'undefined' && process.env && process.env.MAILCHANNELS) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return process.env.MAILCHANNELS as unknown as MailChannelsBinding;
   }
   

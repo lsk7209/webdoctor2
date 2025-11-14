@@ -30,10 +30,6 @@ function DashboardPageClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetchStats();
-  }, []);
-
   const fetchStats = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -53,6 +49,10 @@ function DashboardPageClient() {
     setStats(result.data);
     setLoading(false);
   }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   if (loading) {
     return (

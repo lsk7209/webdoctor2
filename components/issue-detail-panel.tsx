@@ -35,10 +35,7 @@ function IssueDetailPanel({
 }: IssueDetailPanelProps) {
   const [updating, setUpdating] = useState(false);
 
-  if (!issue) {
-    return null;
-  }
-
+  // React Hooks 규칙: 조건부 return 전에 모든 hooks 호출
   const getSeverityColor = useCallback((severity: string) => {
     switch (severity) {
       case 'high':
@@ -69,19 +66,20 @@ function IssueDetailPanel({
   }, []);
 
   const handleStatusChange = useCallback(async (newStatus: string) => {
-    if (updating) return;
+    if (updating || !issue) return;
 
+    const currentIssue = issue; // 클로저를 위한 로컬 변수
     setUpdating(true);
 
     // 표준화된 API 클라이언트 사용
     const result = await apiPatch<{ message: string }>(
-      `/api/sites/${issue.site_id}/issues/${issue.id}`,
+      `/api/sites/${currentIssue.site_id}/issues/${currentIssue.id}`,
       { status: newStatus },
       { timeout: 30000, retries: 1 }
     );
 
     if (result.ok && !result.error) {
-      onStatusChange?.(issue.id, newStatus);
+      onStatusChange?.(currentIssue.id, newStatus);
     } else {
       // 프로덕션에서는 구조화된 에러 로깅 사용 권장
       if (process.env.NODE_ENV === 'development') {
@@ -90,7 +88,12 @@ function IssueDetailPanel({
     }
 
     setUpdating(false);
-  }, [issue.site_id, issue.id, onStatusChange, updating]);
+  }, [issue, onStatusChange, updating]);
+
+  // 조건부 렌더링은 hooks 호출 후에 수행
+  if (!issue) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
