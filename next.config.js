@@ -81,15 +81,23 @@ const nextConfig = {
     // 서버 사이드 번들에서 불필요한 모듈 제외
     if (isServer) {
       config.externals = config.externals || [];
-      config.externals.push({
+      // 배열 형태로 externals 추가 (함수 형태도 지원)
+      const externalsArray = Array.isArray(config.externals) 
+        ? config.externals 
+        : [config.externals].filter(Boolean);
+      
+      externalsArray.push({
         'utf-8-validate': 'commonjs utf-8-validate',
         'bufferutil': 'commonjs bufferutil',
         'bcryptjs': 'commonjs bcryptjs', // Edge Runtime에서 사용하지 않음
         'async_hooks': 'commonjs async_hooks', // Node.js 내장 모듈
       });
+      
+      config.externals = externalsArray;
     }
     
-    // Cloudflare Edge Runtime 호환성을 위한 설정
+    // Cloudflare Edge Runtime 호환성을 위한 설정 (서버와 클라이언트 모두)
+    config.resolve = config.resolve || {};
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
@@ -106,6 +114,13 @@ const nextConfig = {
       path: false,
       async_hooks: false, // Node.js 내장 모듈, Edge Runtime에서는 사용 불가
     };
+    
+    // @cloudflare/next-on-pages 빌드 시 async_hooks 문제 해결
+    // esbuild가 async_hooks를 번들링하려고 할 때 무시하도록 설정
+    if (!isServer) {
+      // 클라이언트 사이드에서도 async_hooks fallback 설정
+      config.resolve.fallback.async_hooks = false;
+    }
     
     // 정적 생성 관련 플러그인 제거
     config.plugins = config.plugins || [];
