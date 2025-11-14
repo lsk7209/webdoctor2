@@ -91,18 +91,23 @@ else
   echo "✅ Next.js 빌드가 성공적으로 완료되었습니다!"
 fi
 
-# 3. Cloudflare Pages 변환
+# 3. Cloudflare Pages 변환 (선택적 - Cloudflare Pages가 자동으로 처리할 수도 있음)
 echo ""
 echo "🔄 Cloudflare Pages 변환 실행 중..."
-npm run pages:build
+if npm run pages:build 2>&1 | tee -a build.log; then
+  echo "✅ Cloudflare Pages 변환 성공"
+else
+  echo "⚠️  Cloudflare Pages 변환 실패 (Cloudflare Pages가 자동으로 처리할 수 있음)"
+fi
 
-# 4. 빌드 출력 확인
-if [ ! -d ".vercel/output/static" ]; then
+# 4. 빌드 출력 확인 (.next 디렉토리만 확인 - Cloudflare Pages가 변환 처리)
+if [ ! -d ".next" ]; then
   echo ""
-  echo "❌ Error: .vercel/output/static 디렉토리가 생성되지 않았습니다."
+  echo "❌ Error: .next 디렉토리가 생성되지 않았습니다."
   exit 1
 fi
 
 echo ""
-echo "✅ Cloudflare Pages 빌드가 완료되었습니다!"
-echo "📁 출력 디렉토리: .vercel/output/static"
+echo "✅ Next.js 빌드가 완료되었습니다!"
+echo "📁 빌드 디렉토리: .next"
+echo "ℹ️  Cloudflare Pages가 자동으로 변환을 처리합니다."

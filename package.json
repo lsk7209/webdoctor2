@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "bash scripts/build-cloudflare-pages.sh || (npm run build:next && npm run pages:build)",
+    "build:next": "next build",
     "build:cloudflare": "next build && npx @cloudflare/next-on-pages --experimental-static",
     "build:pages": "bash scripts/build-cloudflare-pages.sh",
     "build:cloudflare:safe": "node scripts/build-cloudflare.js || (npm run build && npm run pages:build)",
