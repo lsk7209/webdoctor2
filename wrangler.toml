@@ -7,6 +7,11 @@ compatibility_date = "2024-01-01"
 # .vercel/output/static이 없으면 .next 디렉토리 사용
 pages_build_output_dir = ".vercel/output/static"
 
+# 참고: Cloudflare Pages는 다음 순서로 빌드 출력을 찾습니다:
+# 1. pages_build_output_dir에 지정된 디렉토리
+# 2. .vercel/output/static (자동 감지)
+# 3. .next (Next.js 기본 출력 디렉토리)
+
 # D1 데이터베이스 설정
 [[d1_databases]]
 binding = "DB"

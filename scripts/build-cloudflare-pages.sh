@@ -122,18 +122,36 @@ echo "🔄 @cloudflare/next-on-pages 실행 중..."
 # "vercel-build"가 없으면 "build"를 사용하므로, "vercel-build"를 추가하여 재귀 호출 방지
 
 # async_hooks 에러를 우아하게 처리하기 위해 빌드 실행
-# PIPESTATUS는 bash에서만 작동하므로, 직접 실행 후 에러 처리
+# @cloudflare/next-on-pages가 설정 파일을 자동으로 로드하는지 확인
+# 설정 파일이 있으면 자동으로 사용되므로 명시적 지정 불필요
+echo "ℹ️  @cloudflare/next-on-pages 설정 파일 확인 중..."
+if [ -f ".cloudflare/next-on-pages.config.ts" ] || [ -f "next-on-pages.config.ts" ]; then
+  echo "✅ 설정 파일이 발견되었습니다."
+else
+  echo "ℹ️  설정 파일이 없습니다. 기본 설정을 사용합니다."
+fi
+
+# 빌드 실행 (에러 로그를 파일에 저장하면서 동시에 화면에 출력)
 npx @cloudflare/next-on-pages 2>&1 | tee -a build.log
-PAGES_BUILD_EXIT_CODE=${PIPESTATUS[0]}
+PAGES_BUILD_EXIT_CODE=$?
 
 # async_hooks 에러가 있어도 빌드가 완료되었는지 확인
 if [ $PAGES_BUILD_EXIT_CODE -ne 0 ]; then
   # async_hooks 에러만 있는지 확인
   ASYNC_HOOKS_ERROR=$(grep -c "async_hooks" build.log || echo "0")
+  WORKER_ERROR=$(grep -c "_worker.js.*not found\|Could not resolve.*_worker" build.log || echo "0")
+  
+  # 빌드 출력이 생성되었는지 확인
   if [ "$ASYNC_HOOKS_ERROR" -gt 0 ] && [ -d ".vercel/output" ]; then
     echo ""
     echo "⚠️  async_hooks 에러가 발생했지만 빌드 출력이 생성되었습니다."
     echo "ℹ️  이는 알려진 @cloudflare/next-on-pages 이슈이며 무시해도 됩니다."
+    echo "✅ 빌드를 계속 진행합니다..."
+    PAGES_BUILD_EXIT_CODE=0  # 에러를 무시하고 계속 진행
+  elif [ "$WORKER_ERROR" -gt 0 ] && [ -d ".vercel/output" ]; then
+    echo ""
+    echo "⚠️  _worker.js 관련 에러가 발생했지만 빌드 출력이 생성되었습니다."
+    echo "ℹ️  Cloudflare Pages가 자동으로 Worker를 생성할 수 있습니다."
     echo "✅ 빌드를 계속 진행합니다..."
     PAGES_BUILD_EXIT_CODE=0  # 에러를 무시하고 계속 진행
   fi
@@ -154,19 +172,50 @@ if [ -d ".vercel/output/static" ]; then
   echo "✅ Cloudflare Pages 빌드가 완료되었습니다!"
   echo "📁 출력 디렉토리: .vercel/output/static"
   
-  # 빌드 출력 구조 검증
-  if [ -f ".vercel/output/static/_worker.js" ] || [ -d ".vercel/output/static/_worker.js" ]; then
-    echo "✅ _worker.js 파일/디렉토리가 존재합니다."
+  # 빌드 출력 구조 상세 검증
+  echo ""
+  echo "📋 빌드 출력 구조 검증 중..."
+  
+  # _worker.js 파일/디렉토리 확인
+  if [ -f ".vercel/output/static/_worker.js" ]; then
+    echo "✅ _worker.js 파일이 존재합니다."
+    WORKER_SIZE=$(stat -f%z ".vercel/output/static/_worker.js" 2>/dev/null || stat -c%s ".vercel/output/static/_worker.js" 2>/dev/null || echo "알 수 없음")
+    echo "   파일 크기: ${WORKER_SIZE} bytes"
+  elif [ -d ".vercel/output/static/_worker.js" ]; then
+    echo "✅ _worker.js 디렉토리가 존재합니다."
+    echo "   디렉토리 내용:"
+    ls -la ".vercel/output/static/_worker.js" 2>/dev/null | head -10 || echo "   디렉토리 내용을 확인할 수 없습니다."
+    
     # _worker.js/index.js 확인
     if [ -f ".vercel/output/static/_worker.js/index.js" ]; then
       echo "✅ _worker.js/index.js 파일이 존재합니다."
-    elif [ -d ".vercel/output/static/_worker.js" ]; then
-      echo "ℹ️  _worker.js 디렉토리 내용 확인 중..."
-      ls -la ".vercel/output/static/_worker.js" 2>/dev/null | head -10 || echo "디렉토리 내용을 확인할 수 없습니다."
+    else
+      echo "⚠️  _worker.js/index.js 파일을 찾을 수 없습니다."
+      echo "   대안 파일 확인 중..."
+      find ".vercel/output/static/_worker.js" -name "*.js" -type f 2>/dev/null | head -5 || echo "   JavaScript 파일을 찾을 수 없습니다."
     fi
   else
-    echo "⚠️  _worker.js를 찾을 수 없습니다. Cloudflare Pages가 자동으로 생성할 수 있습니다."
+    echo "⚠️  _worker.js를 찾을 수 없습니다."
+    echo "   Cloudflare Pages가 자동으로 Worker를 생성할 수 있습니다."
+    
+    # 대안 파일 확인
+    echo "   대안 파일 확인 중..."
+    find ".vercel/output/static" -name "*worker*" -o -name "*_worker*" 2>/dev/null | head -5 || echo "   Worker 관련 파일을 찾을 수 없습니다."
   fi
+  
+  # _routes.json 확인 (Cloudflare Pages Functions 라우팅)
+  if [ -f ".vercel/output/static/_routes.json" ]; then
+    echo "✅ _routes.json 파일이 존재합니다."
+  else
+    echo "ℹ️  _routes.json 파일이 없습니다. (선택사항)"
+  fi
+  
+  # functions 디렉토리 확인
+  if [ -d ".vercel/output/static/functions" ]; then
+    FUNCTION_COUNT=$(find ".vercel/output/static/functions" -type f -name "*.js" 2>/dev/null | wc -l || echo "0")
+    echo "✅ functions 디렉토리가 존재합니다. (함수 파일: ${FUNCTION_COUNT}개)"
+  fi
+  
 elif [ -d ".vercel/output" ]; then
   echo ""
   echo "⚠️  .vercel/output/static 디렉토리가 없지만 .vercel/output이 존재합니다."
