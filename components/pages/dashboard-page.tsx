@@ -4,8 +4,9 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import Link from 'next/link';
+import { apiGet } from '@/utils/api-client';
 
 interface DashboardStats {
   sites: {
@@ -24,7 +25,7 @@ interface DashboardStats {
   healthScore: number | null;
 }
 
-export default function DashboardPageClient() {
+function DashboardPageClient() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -33,23 +34,25 @@ export default function DashboardPageClient() {
     fetchStats();
   }, []);
 
-  const fetchStats = async () => {
-    try {
-      const response = await fetch('/api/dashboard/stats');
-      const data = await response.json();
+  const fetchStats = useCallback(async () => {
+    setLoading(true);
+    setError('');
 
-      if (!response.ok) {
-        setError(data.error || '대시보드 통계를 불러오는데 실패했습니다.');
-        return;
-      }
+    // 표준화된 API 클라이언트 사용
+    const result = await apiGet<DashboardStats>('/api/dashboard/stats', {
+      timeout: 30000,
+      retries: 1,
+    });
 
-      setStats(data.data);
-    } catch (err) {
-      setError('대시보드 통계를 불러오는 중 오류가 발생했습니다.');
-    } finally {
+    if (!result.ok || result.error) {
+      setError(result.error || '대시보드 통계를 불러오는데 실패했습니다.');
       setLoading(false);
+      return;
     }
-  };
+
+    setStats(result.data);
+    setLoading(false);
+  }, []);
 
   if (loading) {
     return (
@@ -228,4 +231,7 @@ export default function DashboardPageClient() {
     </div>
   );
 }
+
+// 성능 최적화: React.memo로 불필요한 리렌더링 방지
+export default memo(DashboardPageClient);
 

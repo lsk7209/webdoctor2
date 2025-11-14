@@ -5,6 +5,7 @@
 'use client';
 
 import { useState, useCallback, useMemo, memo } from 'react';
+import { apiPatch } from '@/utils/api-client';
 
 interface Issue {
   id: string;
@@ -71,30 +72,25 @@ function IssueDetailPanel({
     if (updating) return;
 
     setUpdating(true);
-    try {
-      const response = await fetch(
-        `/api/sites/${issue.site_id}/issues/${issue.id}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ status: newStatus }),
-        }
-      );
 
-      if (response.ok) {
-        onStatusChange?.(issue.id, newStatus);
-      }
-    } catch (error) {
+    // 표준화된 API 클라이언트 사용
+    const result = await apiPatch<{ message: string }>(
+      `/api/sites/${issue.site_id}/issues/${issue.id}`,
+      { status: newStatus },
+      { timeout: 30000, retries: 1 }
+    );
+
+    if (result.ok && !result.error) {
+      onStatusChange?.(issue.id, newStatus);
+    } else {
       // 프로덕션에서는 구조화된 에러 로깅 사용 권장
       if (process.env.NODE_ENV === 'development') {
-        console.error('이슈 상태 업데이트 실패:', error);
+        console.error('이슈 상태 업데이트 실패:', result.error);
       }
-    } finally {
-      setUpdating(false);
     }
-  }, [issue.site_id, issue.id, onStatusChange]);
+
+    setUpdating(false);
+  }, [issue.site_id, issue.id, onStatusChange, updating]);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">

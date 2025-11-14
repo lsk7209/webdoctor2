@@ -19,6 +19,7 @@ import {
   databaseErrorResponse,
   serverErrorResponse,
   successResponse,
+  errorResponse,
 } from '@/utils/api-response';
 
 // Edge Runtime 사용 (Cloudflare 호환)
@@ -42,10 +43,7 @@ export async function POST(
     // siteId 검증
     const siteIdValidation = validateSiteId(siteId);
     if (!siteIdValidation.valid) {
-      return NextResponse.json(
-        { error: siteIdValidation.error },
-        { status: 400 }
-      );
+      return errorResponse(siteIdValidation.error || '올바르지 않은 사이트 ID 형식입니다.', 400, 'INVALID_SITE_ID');
     }
 
     const db = getD1Database(request);

@@ -4,7 +4,8 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { apiGet } from '@/utils/api-client';
 
 interface CrawlStatusProps {
   siteId: string;
@@ -34,6 +35,20 @@ export default function CrawlStatus({ siteId, siteStatus }: CrawlStatusProps) {
   const [statusData, setStatusData] = useState<CrawlStatusData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchStatus = useCallback(async () => {
+    // 표준화된 API 클라이언트 사용
+    const result = await apiGet<CrawlStatusData>(
+      `/api/sites/${siteId}/crawl/status`,
+      { timeout: 10000, retries: 1 }
+    );
+
+    if (result.ok && result.data) {
+      setStatusData(result.data);
+    }
+
+    setLoading(false);
+  }, [siteId]);
+
   useEffect(() => {
     if (siteStatus === 'crawling' || siteStatus === 'pending') {
       // 크롤링 중이면 주기적으로 상태 업데이트
@@ -44,23 +59,7 @@ export default function CrawlStatus({ siteId, siteStatus }: CrawlStatusProps) {
       // 크롤링이 완료되었으면 한 번만 조회
       fetchStatus();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId, siteStatus]);
-
-  const fetchStatus = async () => {
-    try {
-      const response = await fetch(`/api/sites/${siteId}/crawl/status`);
-      const data = await response.json();
-
-      if (response.ok && data.data) {
-        setStatusData(data.data);
-      }
-    } catch (error) {
-      console.error('크롤 상태 조회 실패:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [siteId, siteStatus, fetchStatus]);
 
   if (loading && !statusData) {
     return (

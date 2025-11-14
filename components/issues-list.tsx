@@ -5,6 +5,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { apiGet } from '@/utils/api-client';
 
 interface Issue {
   id: string;
@@ -56,6 +57,7 @@ function IssuesList({ siteId, onIssueClick, refreshTrigger }: IssuesListProps) {
   const fetchIssues = useCallback(async () => {
     setLoading(true);
     setError('');
+
     try {
       const params = new URLSearchParams();
       if (filters.severity) params.append('severity', filters.severity);
@@ -64,18 +66,29 @@ function IssuesList({ siteId, onIssueClick, refreshTrigger }: IssuesListProps) {
       params.append('page', page.toString());
       params.append('limit', '50');
 
-      const response = await fetch(`/api/sites/${siteId}/issues?${params.toString()}`);
-      const data = await response.json();
+      // 표준화된 API 클라이언트 사용
+      const result = await apiGet<{
+        issues: Issue[];
+        stats: typeof stats;
+        pagination: { page: number; limit: number; total: number; totalPages: number };
+      }>(`/api/sites/${siteId}/issues?${params.toString()}`, {
+        timeout: 30000,
+        retries: 1,
+      });
 
-      if (response.ok && data.data) {
-        setIssues(data.data.issues || []);
-        setStats(data.data.stats || stats);
-        if (data.data.pagination) {
-          setTotalPages(data.data.pagination.totalPages || 1);
-          setTotal(data.data.pagination.total || 0);
+      if (!result.ok || result.error) {
+        setError(result.error || '이슈 목록을 불러오는데 실패했습니다.');
+        setLoading(false);
+        return;
+      }
+
+      if (result.data) {
+        setIssues(result.data.issues || []);
+        setStats(result.data.stats || stats);
+        if (result.data.pagination) {
+          setTotalPages(result.data.pagination.totalPages || 1);
+          setTotal(result.data.pagination.total || 0);
         }
-      } else {
-        setError(data.error || '이슈 목록을 불러오는데 실패했습니다.');
       }
     } catch (err) {
       setError('이슈 목록을 불러오는 중 오류가 발생했습니다.');

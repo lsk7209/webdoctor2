@@ -4,9 +4,11 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { apiPost } from '@/utils/api-client';
+import { normalizeUrl } from '@/utils/validation';
 
 export default function NewSitePageClient() {
   const router = useRouter();
@@ -15,38 +17,49 @@ export default function NewSitePageClient() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // 클라이언트 사이드 URL 검증
+  const urlError = useMemo(() => {
+    if (!url.trim()) return null;
+    const validation = normalizeUrl(url.trim());
+    return validation.error || null;
+  }, [url]);
+
+  const isFormValid = useMemo(() => {
+    return url.trim() && !urlError;
+  }, [url, urlError]);
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // 클라이언트 사이드 URL 검증
+    const urlValidation = normalizeUrl(url.trim());
+    if (urlValidation.error) {
+      setError(urlValidation.error);
+      return;
+    }
+
     setLoading(true);
 
-    try {
-      const response = await fetch('/api/sites', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url,
-          display_name: displayName || undefined,
-        }),
-      });
+    // 표준화된 API 클라이언트 사용
+    const result = await apiPost<{ site: { id: string } }>(
+      '/api/sites',
+      {
+        url: urlValidation.url,
+        display_name: displayName.trim() || undefined,
+      },
+      { timeout: 30000, retries: 1 }
+    );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || '사이트 등록에 실패했습니다.');
-        return;
-      }
-
-      // 등록 성공 시 사이트 목록으로 이동
-      router.push('/sites');
-    } catch (err) {
-      setError('사이트 등록 중 오류가 발생했습니다.');
-    } finally {
+    if (!result.ok || result.error) {
+      setError(result.error || '사이트 등록에 실패했습니다.');
       setLoading(false);
+      return;
     }
-  };
+
+    // 등록 성공 시 사이트 목록으로 이동
+    router.push('/sites');
+  }, [url, displayName, router]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -85,9 +98,20 @@ export default function NewSitePageClient() {
                 required
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
+                aria-invalid={urlError ? 'true' : 'false'}
+                aria-describedby={urlError ? 'url-error' : undefined}
                 placeholder="https://example.com 또는 example.com"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                className={`mt-1 block w-full rounded-md border px-3 py-2 shadow-sm focus:outline-none focus:ring-blue-500 sm:text-sm ${
+                  urlError
+                    ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                    : 'border-gray-300 focus:border-blue-500'
+                }`}
               />
+              {urlError && (
+                <p id="url-error" className="mt-1 text-xs text-red-600" role="alert">
+                  {urlError}
+                </p>
+              )}
               <p className="mt-1 text-xs text-gray-500">
                 프로토콜(http:// 또는 https://)을 포함하거나 제외할 수 있습니다.
               </p>
@@ -122,8 +146,9 @@ export default function NewSitePageClient() {
               </Link>
               <button
                 type="submit"
-                disabled={loading}
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading || !isFormValid}
+                aria-label="사이트 등록"
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 {loading ? '등록 중...' : '사이트 등록'}
               </button>

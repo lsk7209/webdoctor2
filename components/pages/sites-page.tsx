@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import Link from 'next/link';
+import { apiGet } from '@/utils/api-client';
 
 interface Site {
   id: string;
@@ -25,25 +26,23 @@ function SitesPageClient() {
   const [sortBy, setSortBy] = useState<'name' | 'health' | 'status' | 'date'>('name');
 
   const fetchSites = useCallback(async () => {
-    try {
-      const response = await fetch('/api/sites');
-      const data = await response.json();
+    setLoading(true);
+    setError('');
 
-      if (!response.ok) {
-        setError(data.error || '사이트 목록을 불러오는데 실패했습니다.');
-        return;
-      }
+    // 표준화된 API 클라이언트 사용
+    const result = await apiGet<{ sites: Site[] }>('/api/sites', {
+      timeout: 30000,
+      retries: 1,
+    });
 
-      setSites(data.data?.sites || data.sites || []);
-    } catch (err) {
-      setError('사이트 목록을 불러오는 중 오류가 발생했습니다.');
-      // 프로덕션에서는 구조화된 에러 로깅 사용 권장
-      if (process.env.NODE_ENV === 'development') {
-        console.error('사이트 목록 조회 실패:', err);
-      }
-    } finally {
+    if (!result.ok || result.error) {
+      setError(result.error || '사이트 목록을 불러오는데 실패했습니다.');
       setLoading(false);
+      return;
     }
+
+    setSites(result.data?.sites || []);
+    setLoading(false);
   }, []);
 
   useEffect(() => {

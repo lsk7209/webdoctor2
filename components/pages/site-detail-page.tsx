@@ -4,13 +4,14 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import CrawlStatus from '@/components/crawl-status';
 import HealthScore from '@/components/health-score';
 import IssuesList from '@/components/issues-list';
 import IssueDetailPanel from '@/components/issue-detail-panel';
+import { apiGet } from '@/utils/api-client';
 
 interface Site {
   id: string;
@@ -47,7 +48,7 @@ interface Issue {
   updated_at: number;
 }
 
-export default function SiteDetailPageClient() {
+function SiteDetailPageClient() {
   const params = useParams();
   const router = useRouter();
   const siteId = params.siteId as string;
@@ -59,31 +60,34 @@ export default function SiteDetailPageClient() {
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  const fetchSite = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    // 표준화된 API 클라이언트 사용
+    const result = await apiGet<{ site: Site; healthScore: HealthScoreData | null }>(
+      `/api/sites/${siteId}`,
+      { timeout: 30000, retries: 1 }
+    );
+
+    if (!result.ok || result.error) {
+      setError(result.error || '사이트 정보를 불러오는데 실패했습니다.');
+      setLoading(false);
+      return;
+    }
+
+    if (result.data) {
+      setSite(result.data.site);
+      setHealthScore(result.data.healthScore || null);
+    }
+    setLoading(false);
+  }, [siteId]);
+
   useEffect(() => {
     if (siteId) {
       fetchSite();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId]);
-
-  const fetchSite = async () => {
-    try {
-      const response = await fetch(`/api/sites/${siteId}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || '사이트 정보를 불러오는데 실패했습니다.');
-        return;
-      }
-
-      setSite(data.data.site);
-      setHealthScore(data.data.healthScore || null);
-    } catch (err) {
-      setError('사이트 정보를 불러오는 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [siteId, fetchSite]);
 
   if (loading) {
     return (
@@ -257,4 +261,7 @@ export default function SiteDetailPageClient() {
     </div>
   );
 }
+
+// 성능 최적화: React.memo로 불필요한 리렌더링 방지
+export default memo(SiteDetailPageClient);
 

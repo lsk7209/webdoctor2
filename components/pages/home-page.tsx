@@ -4,9 +4,11 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { apiPost } from '@/utils/api-client';
+import { normalizeUrl } from '@/utils/validation';
 
 export default function HomePageClient() {
   const router = useRouter();
@@ -14,56 +16,57 @@ export default function HomePageClient() {
   const [showNotification, setShowNotification] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // URL 검증 (클라이언트 사이드)
+  const urlError = useMemo(() => {
+    if (!url.trim()) return null;
+    const validation = normalizeUrl(url.trim());
+    return validation.error || null;
+  }, [url]);
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!url.trim()) {
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) {
+      return;
+    }
+
+    // 클라이언트 사이드 URL 검증
+    const urlValidation = normalizeUrl(trimmedUrl);
+    if (urlValidation.error) {
+      // 에러는 urlError를 통해 표시됨
       return;
     }
 
     setLoading(true);
 
-    try {
-      // 빠른 시작 API 호출
-      const response = await fetch('/api/sites/quick-start', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url }),
-      });
+    // 빠른 시작 API 호출 (표준화된 API 클라이언트 사용)
+    const result = await apiPost<{ url: string; note?: string }>(
+      '/api/sites/quick-start',
+      { url: urlValidation.url },
+      { timeout: 30000, retries: 1 }
+    );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        // 에러 발생 시 로그인 페이지로 이동
-        if (response.status === 401 || response.status === 403) {
-          router.push(`/login?redirect=${encodeURIComponent(url)}`);
-          return;
-        }
-        throw new Error(data.error || '진단 시작에 실패했습니다.');
+    if (!result.ok || result.error) {
+      // 에러 발생 시 로그인 페이지로 이동
+      if (result.status === 401 || result.status === 403) {
+        router.push(`/login?redirect=${encodeURIComponent(urlValidation.url)}`);
+        return;
       }
-
+      // 에러는 나중에 표시
+    } else {
       // 성공 시 알림 표시
       setShowNotification(true);
       
-      // 5초 후 알림 숨김
+      // 5초 후 알림 숨김 및 로그인 페이지로 이동
       setTimeout(() => {
         setShowNotification(false);
-        // 로그인 페이지로 이동 (실제로는 대시보드로 이동)
         router.push('/login');
       }, 5000);
-    } catch (error) {
-      console.error('Error:', error);
-      // 에러 발생 시에도 알림 표시 (사용자 경험)
-      setShowNotification(true);
-      setTimeout(() => {
-        setShowNotification(false);
-      }, 5000);
-    } finally {
-      setLoading(false);
     }
-  };
+
+    setLoading(false);
+  }, [url, router]);
 
   return (
     <div className="relative flex h-screen w-full flex-col overflow-hidden bg-background-light dark:bg-background-dark">
@@ -113,9 +116,20 @@ export default function HomePageClient() {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://www.example.com"
-                  className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl text-[#121317] dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#dcdfe5] dark:border-gray-600 bg-white dark:bg-gray-800 focus:border-primary h-14 placeholder:text-[#656f86] p-[15px] pl-12 text-base font-normal leading-normal"
+                  aria-invalid={urlError ? 'true' : 'false'}
+                  aria-describedby={urlError ? 'url-error' : undefined}
+                  className={`form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl text-[#121317] dark:text-white focus:outline-0 focus:ring-2 border bg-white dark:bg-gray-800 h-14 placeholder:text-[#656f86] p-[15px] pl-12 text-base font-normal leading-normal ${
+                    urlError
+                      ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                      : 'border-[#dcdfe5] dark:border-gray-600 focus:ring-primary/50 focus:border-primary'
+                  }`}
                   required
                 />
+                {urlError && (
+                  <p id="url-error" className="mt-2 text-sm text-red-600" role="alert">
+                    {urlError}
+                  </p>
+                )}
               </div>
               <button
                 type="submit"
